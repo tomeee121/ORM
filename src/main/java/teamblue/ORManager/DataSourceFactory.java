@@ -10,7 +10,7 @@ import java.io.IOException;
 import java.sql.SQLException;
 import java.util.Properties;
 
-public class dataSourceFactory {
+public class DataSourceFactory {
 
     static DataSource createDataSourceFromFile(String file) {
         Properties props = new Properties();
