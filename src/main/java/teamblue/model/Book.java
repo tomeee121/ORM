@@ -8,7 +8,7 @@ import teamblue.annotations.Table;
 import java.time.LocalDate;
 
 @Entity
-@Table("booksy")
+@Table(value ="Books")
 public class Book {
     @PrimaryKey
     private Long id;
