@@ -1,8 +1,10 @@
 package teamblue.ORManager;
 
 import lombok.extern.slf4j.Slf4j;
+import teamblue.annotations.Column;
 import teamblue.annotations.Entity;
 import teamblue.annotations.PrimaryKey;
+import teamblue.annotations.Table;
 
 import javax.sql.DataSource;
 import java.io.Serializable;
@@ -10,6 +12,7 @@ import java.lang.reflect.Field;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Stream;
@@ -27,38 +30,67 @@ public class H2ORManager extends ORManager {
     void register(Class... entityClasses) throws SQLException {
         for (Class entityClass : entityClasses) {
             if (entityClass.isAnnotationPresent(Entity.class)) {
-                List<Field> fields = new ArrayList<>();
+
+
+                List<Field> primaryKeyFields = new ArrayList<>();
+
 
                 Field[] declaredFields = entityClass.getDeclaredFields();
                 for (Field declaredField : declaredFields) {
-                    if (declaredField.isAnnotationPresent(PrimaryKey.class));
-                    fields.add(declaredField);
+                    if (declaredField.isAnnotationPresent(PrimaryKey.class)) ;
+                    primaryKeyFields.add(declaredField);
                 }
 
+                StringBuilder baseSql;
+                if (entityClass.isAnnotationPresent(Table.class)) {
+
+                }
                 String dropStatementQuery = DROP + entityClass.getSimpleName();
                 PreparedStatement dropPriorTableStmt = dataSource.getConnection().prepareStatement(dropStatementQuery);
                 dropPriorTableStmt.executeUpdate();
 
-                StringBuilder baseSql =
-                        new StringBuilder(CREATE_TABLE_IF_NOT_EXISTS + entityClass.getSimpleName() + LEFT_PARENTHESIS);
 
-                for (int i = 0; i < fields.size(); i++) {
-                    getCastedTypeToH2(fields, i, baseSql);
 
-                    if(i != fields.size() - 1) {
+
+
+                baseSql = new StringBuilder(CREATE_TABLE_IF_NOT_EXISTS + entityClass.getSimpleName() + LEFT_PARENTHESIS);
+
+
+
+                for (int i = 0; i < primaryKeyFields.size(); i++) {
+                    getCastedTypeToH2(primaryKeyFields, i, baseSql);
+
+                    if (i != primaryKeyFields.size() - 1) {
                         baseSql.append(COLON);
                     }
                 }
                 baseSql.append(RIGHT_PARENTHESIS);
 
                 PreparedStatement addTableStatement = dataSource.getConnection()
-                                                                .prepareStatement(String.valueOf(baseSql));
+                        .prepareStatement(String.valueOf(baseSql));
                 addTableStatement.executeUpdate();
+
+                List<Field> columnFields = Arrays.stream(declaredFields)
+                        .filter(f -> f.isAnnotationPresent(Column.class))
+                        .toList();
+
+                columnRename(entityClass, columnFields);
+
             } else {
                 throw new RuntimeException("Annotate POJO with @Entity to add it to DB as a table!");
             }
         }
     }
+
+    void columnRename(Class entityClass, List<Field> columnFields) throws SQLException {
+        for(Field field : columnFields){
+            dataSource.getConnection()
+                    .prepareStatement(ALTER_TABLE + entityClass.getSimpleName()
+                    + ALTER_COLUMN + field.getName() + RENAME_TO + field.getAnnotation(Column.class).value())
+                    .executeUpdate();
+        }
+    }
+
 
     void getCastedTypeToH2(List<Field> fields, int i, StringBuilder baseSql) {
         if (fields.get(i).isAnnotationPresent(PrimaryKey.class)) {

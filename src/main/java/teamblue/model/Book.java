@@ -1,15 +1,20 @@
 package teamblue.model;
 
+import teamblue.annotations.Column;
 import teamblue.annotations.Entity;
 import teamblue.annotations.PrimaryKey;
+import teamblue.annotations.Table;
 
 import java.time.LocalDate;
 
 @Entity
+@Table("booksy")
 public class Book {
     @PrimaryKey
     private Long id;
+    @Column(value = "Title_Of_Book")
     private String title;
+    @Column(value = "Published_At")
     private LocalDate publishedAt;
 
     public Book() {
