@@ -28,8 +28,18 @@ public class H2ORManager extends ORManager {
 
     @Override
     void register(Class... entityClasses) throws SQLException {
-        for (Class entityClass : entityClasses) {
+        for (Class<? extends Class> entityClass : entityClasses) {
+
+
             if (entityClass.isAnnotationPresent(Entity.class)) {
+
+                String tableName = "";
+
+                if (entityClass.isAnnotationPresent(Table.class)) {
+                    tableName = entityClass.getDeclaredAnnotation(Table.class).value();
+                } else {
+                    tableName = entityClass.getSimpleName();
+                }
 
 
                 List<Field> primaryKeyFields = new ArrayList<>();
@@ -41,20 +51,13 @@ public class H2ORManager extends ORManager {
                     primaryKeyFields.add(declaredField);
                 }
 
-                StringBuilder baseSql;
-                if (entityClass.isAnnotationPresent(Table.class)) {
 
-                }
                 String dropStatementQuery = DROP + entityClass.getSimpleName();
                 PreparedStatement dropPriorTableStmt = dataSource.getConnection().prepareStatement(dropStatementQuery);
                 dropPriorTableStmt.executeUpdate();
 
 
-
-
-
-                baseSql = new StringBuilder(CREATE_TABLE_IF_NOT_EXISTS + entityClass.getSimpleName() + LEFT_PARENTHESIS);
-
+                StringBuilder baseSql = new StringBuilder(CREATE_TABLE_IF_NOT_EXISTS + tableName + LEFT_PARENTHESIS);
 
 
                 for (int i = 0; i < primaryKeyFields.size(); i++) {
@@ -74,7 +77,7 @@ public class H2ORManager extends ORManager {
                         .filter(f -> f.isAnnotationPresent(Column.class))
                         .toList();
 
-                columnRename(entityClass, columnFields);
+                columnRename(tableName, columnFields);
 
             } else {
                 throw new RuntimeException("Annotate POJO with @Entity to add it to DB as a table!");
@@ -82,11 +85,12 @@ public class H2ORManager extends ORManager {
         }
     }
 
-    void columnRename(Class entityClass, List<Field> columnFields) throws SQLException {
-        for(Field field : columnFields){
+
+    void columnRename(String tableName, List<Field> columnFields) throws SQLException {
+        for (Field field : columnFields) {
             dataSource.getConnection()
-                    .prepareStatement(ALTER_TABLE + entityClass.getSimpleName()
-                    + ALTER_COLUMN + field.getName() + RENAME_TO + field.getAnnotation(Column.class).value())
+                    .prepareStatement(ALTER_TABLE + tableName
+                            + ALTER_COLUMN + field.getName() + RENAME_TO + field.getAnnotation(Column.class).value())
                     .executeUpdate();
         }
     }
