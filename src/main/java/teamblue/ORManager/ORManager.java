@@ -4,6 +4,7 @@ import lombok.*;
 
 import javax.sql.DataSource;
 import java.io.Serializable;
+import java.sql.SQLException;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Stream;
@@ -14,7 +15,7 @@ import java.util.stream.Stream;
 public abstract class ORManager {
     DataSource dataSource;
 
-    abstract void register(Class... entityClasses);
+    abstract void register(Class... entityClasses) throws SQLException;
 
     abstract Object save(Object o);
 

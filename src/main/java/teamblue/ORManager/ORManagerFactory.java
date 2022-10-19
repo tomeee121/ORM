@@ -28,6 +28,9 @@ public interface ORManagerFactory {
     static ORManager chooseInstanceOfORManager(DBType dbType, DataSource dataSource){
         switch (dbType.name()) {
             case "H2" : return new H2ORManager(dataSource);
+            case "MYSQL" : return new MySQLORManager(dataSource);
+            case "POSTGRESQL" : return new PostgreSQLORManager(dataSource);
+            case "ORACLE" : return new OracleORManager(dataSource);
             default:
                 throw new RuntimeException("No support for this type of database! Please migrate.");
         }
