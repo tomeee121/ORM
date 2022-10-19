@@ -19,6 +19,14 @@ public class ConstantsH2 {
     public static final String REFERENCES = " REFERENCES ";
     public static final String VARCHAR_255 = " VARCHAR(255)";
     public static final String DATE = " DATE";
+    public static final String INTEGER = " INTEGER";
+    public static final String BIGINT = " BIGINT";
+    public static final String DOUBLE_PRECISION = " DOUBLE PRECISION";
+    public static final String BOOLEAN = " BOOLEAN";
+
+
+
+
 
 
     public static final String DROP = "DROP TABLE IF EXISTS ";
