@@ -2,6 +2,7 @@ package teamblue.ORManager;
 
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
+import lombok.extern.slf4j.Slf4j;
 import teamblue.db.type.DBType;
 
 import javax.sql.DataSource;
@@ -11,6 +12,7 @@ import java.io.IOException;
 import java.sql.SQLException;
 import java.util.Properties;
 
+@Slf4j
 public class DataSourceFactory {
 
     static DataSource createDataSourceFromFile(String file) {
@@ -33,10 +35,13 @@ public class DataSourceFactory {
         hikariConfig.setJdbcUrl(props.getProperty("DB_URL"));
         hikariConfig.setUsername(props.getProperty("DB_USERNAME"));
         hikariConfig.setPassword(props.getProperty("DB_PASSWORD"));
+        hikariConfig.setAutoCommit(true);
+
+        log.info("Creating DB connection for {} - username and {} - URL", props.getProperty("DB_USERNAME"), props.getProperty("DB_URL"));
 
         if (props.getProperty("POOL_SIZE") != null) {
             hikariConfig.setMaximumPoolSize(Integer.parseInt(props.getProperty("POOL_SIZE")));
-        } else hikariConfig.setMaximumPoolSize(5);
+        } else hikariConfig.setMaximumPoolSize(10);
 
         hikariConfig.setPoolName("ORM_POOL");
         hikariConfig.addDataSourceProperty("dataSource.cachePrepStmts", "true");
@@ -68,6 +73,6 @@ public class DataSourceFactory {
             }
         }
 
-        throw new RuntimeException("Incorrect DB type chosen!");
+        throw new RuntimeException("Unsupported DB type chosen!");
     }
 }

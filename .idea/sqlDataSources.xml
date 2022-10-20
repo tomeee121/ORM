@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="DdlMappings">
+    <mapping uuid="554e36c6-898c-42c1-a4bc-21a344e0f663" name="H2DBfile [2] Mapping">
+      <data-sources db="d9b98243-97c3-4c1e-a55d-f678f3a90f1e" />
+      <scope>
+        <node kind="database" negative="1">
+          <node kind="schema" negative="1" />
+        </node>
+      </scope>
+    </mapping>
+  </component>
+</project>

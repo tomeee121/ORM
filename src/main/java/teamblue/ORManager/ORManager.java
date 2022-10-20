@@ -4,6 +4,7 @@ import lombok.*;
 
 import javax.sql.DataSource;
 import java.io.Serializable;
+import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.List;
 import java.util.Optional;
@@ -14,6 +15,8 @@ import java.util.stream.Stream;
 @Getter
 public abstract class ORManager {
     DataSource dataSource;
+
+    abstract Connection getConnectionWithDB() throws SQLException;
 
     abstract void register(Class... entityClasses) throws SQLException;
 

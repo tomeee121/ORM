@@ -2,7 +2,7 @@ package teamblue.model;
 
 import teamblue.annotations.Column;
 import teamblue.annotations.Entity;
-import teamblue.annotations.PrimaryKey;
+import teamblue.annotations.Id;
 import teamblue.annotations.Table;
 
 import java.time.LocalDate;
@@ -10,7 +10,7 @@ import java.time.LocalDate;
 @Entity
 @Table(value ="Books")
 public class Book {
-    @PrimaryKey
+    @Id
     private Long id;
     @Column(value = "Title_Of_Book")
     private String title;

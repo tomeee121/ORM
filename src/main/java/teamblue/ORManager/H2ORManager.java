@@ -3,12 +3,13 @@ package teamblue.ORManager;
 import lombok.extern.slf4j.Slf4j;
 import teamblue.annotations.Column;
 import teamblue.annotations.Entity;
-import teamblue.annotations.PrimaryKey;
+import teamblue.annotations.Id;
 import teamblue.annotations.Table;
 
 import javax.sql.DataSource;
 import java.io.Serializable;
 import java.lang.reflect.Field;
+import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -26,6 +27,11 @@ public class H2ORManager extends ORManager {
 
     H2ORManager(DataSource dataSource) {
         super(dataSource);
+    }
+
+    @Override
+    Connection getConnectionWithDB() throws SQLException {
+        return dataSource.getConnection();
     }
 
     @Override
@@ -49,13 +55,13 @@ public class H2ORManager extends ORManager {
 
                 Field[] declaredFields = entityClass.getDeclaredFields();
                 for (Field declaredField : declaredFields) {
-                    if (declaredField.isAnnotationPresent(PrimaryKey.class)) ;
+                    if (declaredField.isAnnotationPresent(Id.class)) ;
                     primaryKeyFields.add(declaredField);
                 }
 
 
                 String dropStatementQuery = DROP + entityClass.getSimpleName();
-                PreparedStatement dropPriorTableStmt = dataSource.getConnection().prepareStatement(dropStatementQuery);
+                PreparedStatement dropPriorTableStmt = getConnectionWithDB().prepareStatement(dropStatementQuery);
                 dropPriorTableStmt.executeUpdate();
 
 
@@ -71,8 +77,7 @@ public class H2ORManager extends ORManager {
                 }
                 baseSql.append(RIGHT_PARENTHESIS);
 
-                PreparedStatement addTableStatement = dataSource.getConnection()
-                        .prepareStatement(String.valueOf(baseSql));
+                PreparedStatement addTableStatement = getConnectionWithDB().prepareStatement(String.valueOf(baseSql));
                 addTableStatement.executeUpdate();
 
                 List<Field> columnFields = Arrays.stream(declaredFields)
@@ -81,7 +86,9 @@ public class H2ORManager extends ORManager {
 
                 columnRename(tableName, columnFields);
 
+                log.info("Created table of name {}", entityClass.getSimpleName());
             } else {
+                log.error("Error creating table of name {}", entityClass.getSimpleName());
                 throw new RuntimeException("Annotate POJO with @Entity to add it to DB as a table!");
             }
         }
@@ -90,16 +97,31 @@ public class H2ORManager extends ORManager {
 
     void columnRename(String tableName, List<Field> columnFields) throws SQLException {
         for (Field field : columnFields) {
-            dataSource.getConnection()
+            getConnectionWithDB()
                     .prepareStatement(ALTER_TABLE + tableName
-                            + ALTER_COLUMN + field.getName() + RENAME_TO + field.getAnnotation(Column.class).value())
+                            + ALTER_COLUMN + field.getName().toUpperCase() + RENAME_TO + field.getAnnotation(Column.class).value())
                     .executeUpdate();
         }
     }
 
 
     void getCastedTypeToH2(List<Field> fields, int i, StringBuilder baseSql) {
-        if (fields.get(i).isAnnotationPresent(PrimaryKey.class)) {
+/**
+        primary keys need auto_increment and primary key  syntaxes
+*/
+
+        if("UUID".equals(fields.get(i).getType().getSimpleName()) && (fields.get(i).isAnnotationPresent(Id.class))) {
+            baseSql.append(fields.get(i).getName() + UUID + AUTO_INCREMENT + PRIMARY_KEY);
+
+        } else if ("long".equals(fields.get(i).getType().getSimpleName()) && (fields.get(i).isAnnotationPresent(Id.class))
+                    || "Long".equals(fields.get(i).getType().getSimpleName()) && (fields.get(i).isAnnotationPresent(Id.class))) {
+            baseSql.append(fields.get(i).getName() + BIGINT + AUTO_INCREMENT + PRIMARY_KEY);
+
+/**
+        now not annoted with @Id POJO fields casted to H2 equivalennt type
+*/
+
+        } else if ("UUID".equals(fields.get(i).getType().getSimpleName())) {
             baseSql.append(fields.get(i).getName() + UUID);
         } else if ("String".equals(fields.get(i).getType().getSimpleName())) {
             baseSql.append(fields.get(i).getName() + VARCHAR_255);
