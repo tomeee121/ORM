@@ -2,7 +2,7 @@ package teamblue.ORManager;
 
 import teamblue.annotations.Column;
 import teamblue.annotations.Entity;
-import teamblue.annotations.PrimaryKey;
+import teamblue.annotations.Id;
 import teamblue.annotations.Table;
 
 import java.time.LocalDate;
@@ -10,7 +10,7 @@ import java.time.LocalDate;
 @Table("Books")
 public class BookTest {
 
-        @PrimaryKey
+        @Id
         private Long id;
         @Column(value = "Title_Of_Book")
         private String title;

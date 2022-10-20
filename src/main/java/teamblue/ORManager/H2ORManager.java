@@ -3,7 +3,7 @@ package teamblue.ORManager;
 import lombok.extern.slf4j.Slf4j;
 import teamblue.annotations.Column;
 import teamblue.annotations.Entity;
-import teamblue.annotations.PrimaryKey;
+import teamblue.annotations.Id;
 import teamblue.annotations.Table;
 
 import javax.sql.DataSource;
@@ -47,7 +47,7 @@ public class H2ORManager extends ORManager {
 
                 Field[] declaredFields = entityClass.getDeclaredFields();
                 for (Field declaredField : declaredFields) {
-                    if (declaredField.isAnnotationPresent(PrimaryKey.class)) ;
+                    if (declaredField.isAnnotationPresent(Id.class)) ;
                     primaryKeyFields.add(declaredField);
                 }
 
@@ -79,7 +79,9 @@ public class H2ORManager extends ORManager {
 
                 columnRename(tableName, columnFields);
 
+                log.info("Created table of name {}", entityClass.getSimpleName());
             } else {
+                log.error("Error creating table of name {}", entityClass.getSimpleName());
                 throw new RuntimeException("Annotate POJO with @Entity to add it to DB as a table!");
             }
         }
@@ -97,7 +99,7 @@ public class H2ORManager extends ORManager {
 
 
     void getCastedTypeToH2(List<Field> fields, int i, StringBuilder baseSql) {
-        if (fields.get(i).isAnnotationPresent(PrimaryKey.class)) {
+        if (fields.get(i).isAnnotationPresent(Id.class)) {
             baseSql.append(fields.get(i).getName() + UUID);
         } else if ("String".equals(fields.get(i).getType().getSimpleName())) {
             baseSql.append(fields.get(i).getName() + VARCHAR_255);

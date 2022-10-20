@@ -70,7 +70,7 @@ public class DataSourceFactoryTest {
     }
 
     @Test
-    public void whenDecoratorORManagerObjectFromH2DataSourceCreated_shouldHaveCorrectInfoAboutTypeOfDB() {
+    public void shouldDecoratorORManagerObjectFromH2DataSourceCreated_whenHaveCorrectInfoAboutTypeOfDB() {
 
         //given
         DataSource h2DataSource = HikariDataSourceSample.getH2DataSource();
