@@ -16,7 +16,7 @@ import java.util.stream.Stream;
 public abstract class ORManager {
     DataSource dataSource;
 
-    abstract Connection getConnection() throws SQLException;
+    abstract Connection getConnectionWithDB() throws SQLException;
 
     abstract void register(Class... entityClasses) throws SQLException;
 

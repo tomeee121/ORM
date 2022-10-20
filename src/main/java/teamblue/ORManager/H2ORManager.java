@@ -28,7 +28,7 @@ public class H2ORManager extends ORManager {
     }
 
     @Override
-    Connection getConnection() throws SQLException {
+    Connection getConnectionWithDB() throws SQLException {
         return super.dataSource.getConnection();
     }
 
@@ -59,7 +59,7 @@ public class H2ORManager extends ORManager {
 
 
                 String dropStatementQuery = DROP + entityClass.getSimpleName();
-                PreparedStatement dropPriorTableStmt = getConnection().prepareStatement(dropStatementQuery);
+                PreparedStatement dropPriorTableStmt = getConnectionWithDB().prepareStatement(dropStatementQuery);
                 dropPriorTableStmt.executeUpdate();
 
 
@@ -75,7 +75,7 @@ public class H2ORManager extends ORManager {
                 }
                 baseSql.append(RIGHT_PARENTHESIS);
 
-                PreparedStatement addTableStatement = getConnection().prepareStatement(String.valueOf(baseSql));
+                PreparedStatement addTableStatement = getConnectionWithDB().prepareStatement(String.valueOf(baseSql));
                 addTableStatement.executeUpdate();
 
                 List<Field> columnFields = Arrays.stream(declaredFields)
@@ -95,9 +95,9 @@ public class H2ORManager extends ORManager {
 
     void columnRename(String tableName, List<Field> columnFields) throws SQLException {
         for (Field field : columnFields) {
-            dataSource.getConnection()
+            getConnectionWithDB()
                     .prepareStatement(ALTER_TABLE + tableName
-                            + ALTER_COLUMN + field.getName() + RENAME_TO + field.getAnnotation(Column.class).value())
+                            + ALTER_COLUMN + field.getName().toUpperCase() + RENAME_TO + field.getAnnotation(Column.class).value())
                     .executeUpdate();
         }
     }

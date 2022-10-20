@@ -15,7 +15,7 @@ public class OracleORManager extends ORManager {
     }
 
     @Override
-    Connection getConnection() throws SQLException {
+    Connection getConnectionWithDB() throws SQLException {
         return super.dataSource.getConnection();
     }
 

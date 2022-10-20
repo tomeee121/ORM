@@ -20,7 +20,7 @@ public class PostgreSQLORManager extends ORManager {
     }
 
     @Override
-    Connection getConnection() throws SQLException {
+    Connection getConnectionWithDB() throws SQLException {
         return super.dataSource.getConnection();
     }
 
