@@ -2,6 +2,8 @@ package teamblue.ORManager;
 
 import javax.sql.DataSource;
 import java.io.Serializable;
+import java.sql.Connection;
+import java.sql.SQLException;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Stream;
@@ -10,6 +12,11 @@ public class OracleORManager extends ORManager {
 
     OracleORManager(DataSource dataSource) {
         super(dataSource);
+    }
+
+    @Override
+    Connection getConnection() throws SQLException {
+        return super.dataSource.getConnection();
     }
 
     @Override

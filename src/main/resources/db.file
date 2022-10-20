@@ -1,0 +1,4 @@
+DB_DRIVER_CLASS=org.h2.Driver
+DB_URL=jdbc:h2:./src/main/H2DBfile
+DB_USERNAME=sa
+DB_PASSWORD=

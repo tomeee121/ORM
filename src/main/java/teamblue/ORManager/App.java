@@ -10,7 +10,7 @@ public class App
 {
     public static void main( String[] args ) throws SQLException {
 
-        ORManager orManager = ORManagerFactory.withPropertiesFrom("db.file");
+        ORManager orManager = ORManagerFactory.withPropertiesFrom("src/main/resources/db.file");
         orManager.register(Book.class);
 
 

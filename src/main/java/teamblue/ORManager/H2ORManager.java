@@ -9,6 +9,7 @@ import teamblue.annotations.Table;
 import javax.sql.DataSource;
 import java.io.Serializable;
 import java.lang.reflect.Field;
+import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.util.ArrayList;
@@ -24,6 +25,11 @@ public class H2ORManager extends ORManager {
 
     H2ORManager(DataSource dataSource) {
         super(dataSource);
+    }
+
+    @Override
+    Connection getConnection() throws SQLException {
+        return super.dataSource.getConnection();
     }
 
     @Override
@@ -53,7 +59,7 @@ public class H2ORManager extends ORManager {
 
 
                 String dropStatementQuery = DROP + entityClass.getSimpleName();
-                PreparedStatement dropPriorTableStmt = dataSource.getConnection().prepareStatement(dropStatementQuery);
+                PreparedStatement dropPriorTableStmt = getConnection().prepareStatement(dropStatementQuery);
                 dropPriorTableStmt.executeUpdate();
 
 
@@ -69,8 +75,7 @@ public class H2ORManager extends ORManager {
                 }
                 baseSql.append(RIGHT_PARENTHESIS);
 
-                PreparedStatement addTableStatement = dataSource.getConnection()
-                        .prepareStatement(String.valueOf(baseSql));
+                PreparedStatement addTableStatement = getConnection().prepareStatement(String.valueOf(baseSql));
                 addTableStatement.executeUpdate();
 
                 List<Field> columnFields = Arrays.stream(declaredFields)
