@@ -104,7 +104,22 @@ public class H2ORManager extends ORManager {
 
 
     void getCastedTypeToH2(List<Field> fields, int i, StringBuilder baseSql) {
-        if (fields.get(i).isAnnotationPresent(Id.class)) {
+/**
+        primary keys need auto_increment and primary key  syntaxes
+*/
+
+        if("UUID".equals(fields.get(i).getType().getSimpleName()) && (fields.get(i).isAnnotationPresent(Id.class))) {
+            baseSql.append(fields.get(i).getName() + UUID + AUTO_INCREMENT + PRIMARY_KEY);
+
+        } else if ("long".equals(fields.get(i).getType().getSimpleName()) && (fields.get(i).isAnnotationPresent(Id.class))
+                    || "Long".equals(fields.get(i).getType().getSimpleName()) && (fields.get(i).isAnnotationPresent(Id.class))) {
+            baseSql.append(fields.get(i).getName() + BIGINT + AUTO_INCREMENT + PRIMARY_KEY);
+
+/**
+        now not annoted with @Id POJO fields casted to H2 equivalennt type
+*/
+
+        } else if ("UUID".equals(fields.get(i).getType().getSimpleName())) {
             baseSql.append(fields.get(i).getName() + UUID);
         } else if ("String".equals(fields.get(i).getType().getSimpleName())) {
             baseSql.append(fields.get(i).getName() + VARCHAR_255);

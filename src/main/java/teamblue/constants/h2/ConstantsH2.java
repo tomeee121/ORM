@@ -9,8 +9,9 @@ public class ConstantsH2 {
 
     public static final String EQUAL_QUESTION_MARK = " =? ";
     public static final String COLON = ", ";
-    public static final String UUID = " UUID default random_uuid()";
-
+    public static final String UUID = " UUID";
+    public static final String AUTO_INCREMENT = " auto_increment ";
+    public static final String PRIMARY_KEY = "primary key";
 
     public static final String INSERT_INTO = "INSERT INTO ";
     public static final String VALUES = " VALUES ";
