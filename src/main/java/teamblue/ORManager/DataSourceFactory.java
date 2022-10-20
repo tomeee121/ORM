@@ -35,12 +35,13 @@ public class DataSourceFactory {
         hikariConfig.setJdbcUrl(props.getProperty("DB_URL"));
         hikariConfig.setUsername(props.getProperty("DB_USERNAME"));
         hikariConfig.setPassword(props.getProperty("DB_PASSWORD"));
+        hikariConfig.setAutoCommit(true);
 
         log.info("Creating DB connection for {} - username and {} - URL", props.getProperty("DB_USERNAME"), props.getProperty("DB_URL"));
 
         if (props.getProperty("POOL_SIZE") != null) {
             hikariConfig.setMaximumPoolSize(Integer.parseInt(props.getProperty("POOL_SIZE")));
-        } else hikariConfig.setMaximumPoolSize(5);
+        } else hikariConfig.setMaximumPoolSize(10);
 
         hikariConfig.setPoolName("ORM_POOL");
         hikariConfig.addDataSourceProperty("dataSource.cachePrepStmts", "true");

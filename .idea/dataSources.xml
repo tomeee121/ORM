@@ -8,5 +8,12 @@
       <jdbc-url>jdbc:h2:./src/test/H2DBfile</jdbc-url>
       <working-dir>$ProjectFileDir$</working-dir>
     </data-source>
+    <data-source source="LOCAL" name="mainH2" uuid="92543433-4cad-4d9f-ba95-7e3061000558">
+      <driver-ref>h2.unified</driver-ref>
+      <synchronize>true</synchronize>
+      <jdbc-driver>org.h2.Driver</jdbc-driver>
+      <jdbc-url>jdbc:h2:./src/main/H2DBfile</jdbc-url>
+      <working-dir>$ProjectFileDir$</working-dir>
+    </data-source>
   </component>
 </project>

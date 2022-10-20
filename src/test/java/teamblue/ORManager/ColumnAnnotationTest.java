@@ -18,9 +18,7 @@ public class ColumnAnnotationTest {
         ORManager orManager = ORManagerFactory.withPropertiesFrom("src/test/resources/db.file");
         orManager.register(BookTest.class);
 
-        H2ORManager H2ORM = (H2ORManager) orManager;
-
-        PreparedStatement preparedStatement = H2ORM.getConnectionWithDB().prepareStatement("SELECT * FROM BOOKS");
+        PreparedStatement preparedStatement = orManager.getConnectionWithDB().prepareStatement("SELECT * FROM BOOKS");
 
         ResultSet resultSet = preparedStatement.executeQuery();
         //@Column annotation on title field @Column("Title_Of_Book")
@@ -33,14 +31,13 @@ public class ColumnAnnotationTest {
     @Test
     public void Register_ColumnAnnotation_ChangePublishedNameProperly() throws SQLException {
 
-        ORManager orManager = ORManagerFactory.withPropertiesFrom("src/main/resources/db.file");
-
-        PreparedStatement preparedStatement = orManager.getDataSource().getConnection().prepareStatement("SELECT * FROM BOOKSSELECT * FROM BOOKS");
-
-        //@Column annotation on publishedAt field @Column("Published_At")
+        ORManager orManager = ORManagerFactory.withPropertiesFrom("src/test/resources/db.file");
         orManager.register(BookTest.class);
 
+        PreparedStatement preparedStatement = orManager.getDataSource().getConnection().prepareStatement("SELECT * FROM BOOKS");
+
         ResultSet resultSet = preparedStatement.executeQuery();
+        //@Column annotation on publishedAt field @Column("Published_At")
         int published_at = resultSet.findColumn("Published_At");
 
         Assert.assertTrue("If findColumn() return number more than 0 it means column has been found",published_at>0);
@@ -50,12 +47,10 @@ public class ColumnAnnotationTest {
     @Test
     public void Register_ColumnAnnotation_CantFindChangedColumn_ThrowException() throws SQLException {
 
-        ORManager orManager = ORManagerFactory.withPropertiesFrom("src/main/resources/db.file");
+        ORManager orManager = ORManagerFactory.withPropertiesFrom("src/test/resources/db.file");
+        orManager.register(BookTest.class);
 
         PreparedStatement preparedStatement = orManager.getDataSource().getConnection().prepareStatement("SELECT * FROM BOOKS");
-
-        //@Column annotation on publishedAt field @Column("Published_At")
-        orManager.register(BookTest.class);
 
         ResultSet resultSet = preparedStatement.executeQuery();
 

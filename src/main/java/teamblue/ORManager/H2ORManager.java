@@ -29,7 +29,7 @@ public class H2ORManager extends ORManager {
 
     @Override
     Connection getConnectionWithDB() throws SQLException {
-        return super.dataSource.getConnection();
+        return dataSource.getConnection();
     }
 
     @Override
