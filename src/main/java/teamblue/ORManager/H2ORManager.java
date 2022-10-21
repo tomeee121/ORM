@@ -151,53 +151,55 @@ public class H2ORManager extends ORManager {
             throw new RuntimeException("Class was not found");
         }
 
+        String className = clazz.isAnnotationPresent(Table.class) ? clazz.getAnnotation(Table.class).value() : clazz.getSimpleName();
+
         if (clazz.isAnnotationPresent(Entity.class)) {
             Field[] declaredFields = clazz.getDeclaredFields();
             saveSql.append(INSERT_INTO)
-                   .append(clazz.getSimpleName())
-                   .append(VALUES);
+                   .append(className);
             if(Arrays.stream(declaredFields).findAny().isEmpty()){
                 log.debug("No fields present to save to database.");
                 throw new RuntimeException("No fields present to save to database");
             }
-            String fieldNames = Arrays.stream(declaredFields)
-                    .map(field -> getFieldNameOfObject(o, field))
-                    .collect(Collectors.joining(", ", LEFT_PARENTHESIS, RIGHT_PARENTHESIS));
-            saveSql.append(fieldNames);
 
-
-            Long currentId = Arrays.stream(clazz.getDeclaredFields())
-                                   .filter(field -> field.isAnnotationPresent(Id.class))
-                                   .map(f -> {
-                                       f.setAccessible(true);
-                                       try {
-                                           return f.getLong(o);
-                                       } catch (IllegalAccessException e) {
-                                           log.debug(e.getMessage());
-                                           throw new RuntimeException("Unable to get Id from object");
-                                       }
-                                   })
-                                   .findFirst()
-                                   .orElse(0L);
-
-
-            String sqlFieldsValue = "";
-            if (currentId == 0L
-                    && Arrays.stream(declaredFields).count() > 2) {
-                sqlFieldsValue = getSqlValuesOfFields(declaredFields,
-                                                   () -> Predicate.not(f -> f.isAnnotationPresent(Id.class)));
-                saveSql.append(sqlFieldsValue);
-            } else {
-                sqlFieldsValue = getSqlValuesOfFields(declaredFields,() -> f -> true);
-                saveSql.append(sqlFieldsValue);
+            Long id = 0L;
+            Optional<Field> opField = Arrays.stream(clazz.getDeclaredFields())
+                                            .filter(field -> field.isAnnotationPresent(Id.class))
+                                            .findAny();
+            if(opField.isPresent()){
+                Field fieldId = opField.get();
+                if (fieldId.getType().equals("Long")) {
+                    try {
+                        if (fieldId.get(o) != null){
+                            id = (Long) fieldId.get(o);
+                        }
+                    } catch (IllegalAccessException e) {
+                        log.debug("Problem with getting id value from object");
+                        throw new RuntimeException(e);
+                    }
+                }
             }
-            if(sqlFieldsValue.equals("")){
+
+
+            String sqlFieldsNames = "";
+            if (id == 0L
+                    && Arrays.stream(declaredFields).count() > 2) {
+                sqlFieldsNames = getSqlNamesOfFields(declaredFields,
+                                                     () -> Predicate.not(f -> f.isAnnotationPresent(Id.class)));
+                saveSql.append(sqlFieldsNames).append(VALUES);
+                saveSql.append(getSqlValuesOfFields(declaredFields, () -> Predicate.not(f -> f.isAnnotationPresent(Id.class)), o));
+
+                log.debug("SQL fields value: {}",sqlFieldsNames);
+            } else {
+                sqlFieldsNames = getSqlNamesOfFields(declaredFields, () -> f -> true);
+                saveSql.append(sqlFieldsNames).append(VALUES);
+                saveSql.append(getSqlValuesOfFields(declaredFields, () -> f -> true, o));
+            }
+            if(sqlFieldsNames.equals("")){
                 log.debug("Problem with getting names from fields");
                 throw new RuntimeException("Problem with getting names from fields");
             }
 
-            saveSql.append(VALUES)
-                   .append(sqlFieldsValue);
 
             Long generatedKey = null;
             try (PreparedStatement ps = dataSource.getConnection().prepareStatement(saveSql.toString()
@@ -211,7 +213,7 @@ public class H2ORManager extends ORManager {
                 log.debug("{}", e.getMessage());
                 throw new RuntimeException(e.getMessage());
             }
-            if (currentId == 0L) {
+            if (id == 0L) {
                 Long finalGeneratedKey = generatedKey;
                 Arrays.stream(declaredFields).filter(field -> field.isAnnotationPresent(Id.class))
                               .forEach(field -> {
@@ -228,7 +230,21 @@ public class H2ORManager extends ORManager {
         return o;
     }
 
-    private static String getSqlValuesOfFields(Field[] declaredFields, Supplier<Predicate<Field>> annotationPresent) {
+    private String getSqlValuesOfFields(Field[] declaredFields, Supplier<Predicate<Field>> annotationPresent, Object object) {
+        return Arrays.stream(declaredFields)
+                .filter(annotationPresent.get())
+                .map(field -> {
+                    try {
+                        field.setAccessible(true);
+                        return String.valueOf(field.get(object));
+                    } catch (IllegalAccessException e) {
+                        throw new RuntimeException(e);
+                    }
+                })
+                .collect(Collectors.joining(", ",LEFT_PARENTHESIS,RIGHT_PARENTHESIS));
+    }
+
+    private static String getSqlNamesOfFields(Field[] declaredFields, Supplier<Predicate<Field>> annotationPresent) {
         return Arrays.stream(declaredFields)
                      .filter(annotationPresent.get())
                      .map(f -> {
@@ -245,11 +261,7 @@ public class H2ORManager extends ORManager {
     private static String getFieldNameOfObject(Object o, Field field) {
         if(field.isAnnotationPresent(Id.class)){
             field.setAccessible(true);
-            try {
-                return String.valueOf(field.getLong(o));
-            } catch (IllegalAccessException e) {
-                log.debug("Unable to get Id value of object.");
-            }
+            return field.getName();
         } else{
             if (field.isAnnotationPresent(Column.class)) {
                 return field.getAnnotation(Column.class)
@@ -264,7 +276,6 @@ public class H2ORManager extends ORManager {
                 }
             }
         }
-        return "";
     }
 
     private List<String> getDeclaredFieldsName(Stream<Field> fieldStream) {
