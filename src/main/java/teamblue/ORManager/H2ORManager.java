@@ -8,6 +8,7 @@ import teamblue.annotations.Table;
 
 import javax.sql.DataSource;
 import java.io.Serializable;
+import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.sql.*;
 import java.util.ArrayList;
@@ -84,17 +85,6 @@ public class H2ORManager extends ORManager {
         }
     }
 
-    private static String getTableName(Class<?> entityClass) {
-        String tableName = "";
-
-        if (entityClass.isAnnotationPresent(Table.class)) {
-            tableName = entityClass.getDeclaredAnnotation(Table.class).value();
-        } else {
-            tableName = entityClass.getSimpleName();
-        }
-        return tableName;
-    }
-
 
     void columnRename(String tableName, List<Field> columnFields) throws SQLException {
         for (Field field : columnFields) {
@@ -161,35 +151,52 @@ public class H2ORManager extends ORManager {
 
         String tableName = getTableName(cls);
 
-        String fieldIdName = Arrays.stream(cls.getDeclaredFields())
+        Field fieldId = Arrays.stream(cls.getDeclaredFields())
                 .filter(f -> f.isAnnotationPresent(Id.class))
-                .map(f -> f.getName())
                 .findFirst().get();
 
-        String fieldIdColumnValue = Arrays.stream(cls.getDeclaredFields())
-                .filter(f -> f.isAnnotationPresent(Id.class))
-                .filter(f -> f.isAnnotationPresent(Column.class))
-                .map(f -> f.getAnnotation(Column.class).value())
-                .findFirst().orElse(fieldIdName);
+        String fieldName = getFieldName(fieldId);
 
 
-        try (PreparedStatement ps = getConnectionWithDB().prepareStatement(SELECT + "*" + FROM + tableName + WHERE + fieldIdColumnValue + EQUAL_QUESTION_MARK)) {
+        Constructor<?> constructor = Arrays.stream(cls.getDeclaredConstructors())
+                .findFirst().get();
+
+        try (PreparedStatement ps = getConnectionWithDB().prepareStatement(SELECT + "*" + FROM + tableName + WHERE + fieldName + EQUAL_QUESTION_MARK)) {
             ps.setInt(1, (int) id);
             ResultSet resultSet = ps.executeQuery();
             ResultSetMetaData metaData = resultSet.getMetaData();
             int columnCount = metaData.getColumnCount();
             while (resultSet.next()) {
                 for (int i = 1; i < columnCount; i++) {
-                    T object = (T) resultSet.getObject(i);
-                    result = Optional.ofNullable(object);
-                }
 
+                }
 
             }
             return result;
         } catch (SQLException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    private static String getTableName(Class<?> entityClass) {
+        String tableName = "";
+
+        if (entityClass.isAnnotationPresent(Table.class)) {
+            tableName = entityClass.getDeclaredAnnotation(Table.class).value();
+        } else {
+            tableName = entityClass.getSimpleName();
+        }
+        return tableName;
+    }
+
+    private static <T> String getFieldName(Field field) {
+        String fieldName;
+        if (field.isAnnotationPresent(Column.class)) {
+            fieldName = field.getAnnotation(Column.class).value();
+        } else {
+            fieldName = field.getName();
+        }
+        return fieldName;
     }
 
     @Override
