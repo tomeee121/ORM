@@ -1,4 +1,4 @@
-package teamblue.ORManager;
+package teamblue.classes;
 
 import teamblue.annotations.Column;
 import teamblue.annotations.Entity;
@@ -8,7 +8,7 @@ import teamblue.annotations.Table;
 import java.time.LocalDate;
 @Entity
 @Table("Books")
-public class BookTest {
+public class BookColumnTest {
 
         @Id
         private Long id;
@@ -17,10 +17,10 @@ public class BookTest {
         @Column(value = "Published_At")
         private LocalDate publishedAt;
 
-        public BookTest() {
+        public BookColumnTest() {
         }
 
-        public BookTest(String title, LocalDate publishedAt) {
+        public BookColumnTest(String title, LocalDate publishedAt) {
             this.title = title;
             this.publishedAt = publishedAt;
         }

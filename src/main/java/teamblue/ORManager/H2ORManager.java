@@ -11,14 +11,12 @@ import java.io.Serializable;
 import java.lang.reflect.Field;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
-import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.sql.Statement;
-import java.util.*;
-import java.util.stream.Collectors;
-
 import java.time.LocalDate;
-
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Optional;
 import java.util.stream.Stream;
 
 import static teamblue.constants.h2.ConstantsH2.*;
@@ -37,7 +35,8 @@ public class H2ORManager extends ORManager {
 
     @Override
     void register(Class... entityClasses) throws SQLException {
-        for (Class<? extends Class> entityClass : entityClasses) {
+        for (Class<?> entityClass : entityClasses) {
+
 
             if (entityClass.isAnnotationPresent(Entity.class)) {
                 registerClass(entityClass);
@@ -69,6 +68,12 @@ public class H2ORManager extends ORManager {
         }
 
 
+                String dropStatementQuery = DROP + tableName;
+                PreparedStatement dropPriorTableStmt = getConnectionWithDB().prepareStatement(dropStatementQuery);
+                dropPriorTableStmt.executeUpdate();
+
+
+                StringBuilder baseSql = new StringBuilder(CREATE_TABLE_IF_NOT_EXISTS + tableName + LEFT_PARENTHESIS);
         StringBuilder baseSql = new StringBuilder(CREATE_TABLE_IF_NOT_EXISTS + tableName + LEFT_PARENTHESIS);
 
 
@@ -91,6 +96,17 @@ public class H2ORManager extends ORManager {
         columnRename(tableName, columnFields);
 
         log.info("Created table of name {}", entityClass.getSimpleName());
+    }
+
+    private static String getTableName(Class<?> entityClass) {
+        String tableName = "";
+
+        if (entityClass.isAnnotationPresent(Table.class)) {
+            tableName = entityClass.getDeclaredAnnotation(Table.class).value();
+        } else {
+            tableName = entityClass.getSimpleName();
+        }
+        return tableName;
     }
 
 
@@ -256,7 +272,45 @@ public class H2ORManager extends ORManager {
 
     @Override
     <T> Optional<T> findById(Serializable id, Class<T> cls) {
-        return Optional.empty();
+
+        Optional<T> result = Optional.empty();
+
+        if (!cls.isAnnotationPresent(Entity.class)) {
+            log.error("First register a class");
+            return null;
+        }
+
+        String tableName = getTableName(cls);
+
+        String fieldIdName = Arrays.stream(cls.getDeclaredFields())
+                .filter(f -> f.isAnnotationPresent(Id.class))
+                .map(f -> f.getName())
+                .findFirst().get();
+
+        String fieldIdColumnValue = Arrays.stream(cls.getDeclaredFields())
+                .filter(f -> f.isAnnotationPresent(Id.class))
+                .filter(f -> f.isAnnotationPresent(Column.class))
+                .map(f -> f.getAnnotation(Column.class).value())
+                .findFirst().orElse(fieldIdName);
+
+
+        try (PreparedStatement ps = getConnectionWithDB().prepareStatement(SELECT + "*" + FROM + tableName + WHERE + fieldIdColumnValue + EQUAL_QUESTION_MARK)) {
+            ps.setInt(1, (int) id);
+            ResultSet resultSet = ps.executeQuery();
+            ResultSetMetaData metaData = resultSet.getMetaData();
+            int columnCount = metaData.getColumnCount();
+            while (resultSet.next()) {
+                for (int i = 1; i < columnCount; i++) {
+                    T object = (T) resultSet.getObject(i);
+                    result = Optional.ofNullable(object);
+                }
+
+
+            }
+            return result;
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     @Override

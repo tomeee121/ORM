@@ -35,7 +35,7 @@ public class DataSourceFactoryTest {
         //given
         //when
         Connection connection;
-        ORManager orManager = ORManagerFactory.withPropertiesFrom("db.file");
+        ORManager orManager = ORManagerFactory.withPropertiesFrom("src/test/resources/db.file");
         try {connection = orManager.getDataSource()
                                               .getConnection();
         } catch (SQLException e) {
