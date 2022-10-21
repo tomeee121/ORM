@@ -9,9 +9,7 @@ import teamblue.annotations.Table;
 import javax.sql.DataSource;
 import java.io.Serializable;
 import java.lang.reflect.Field;
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.SQLException;
+import java.sql.*;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -34,18 +32,12 @@ public class H2ORManager extends ORManager {
 
     @Override
     void register(Class... entityClasses) throws SQLException {
-        for (Class<? extends Class> entityClass : entityClasses) {
+        for (Class<?> entityClass : entityClasses) {
 
 
             if (entityClass.isAnnotationPresent(Entity.class)) {
 
-                String tableName = "";
-
-                if (entityClass.isAnnotationPresent(Table.class)) {
-                    tableName = entityClass.getDeclaredAnnotation(Table.class).value();
-                } else {
-                    tableName = entityClass.getSimpleName();
-                }
+                String tableName = getTableName(entityClass);
 
 
                 List<Field> primaryKeyFields = new ArrayList<>();
@@ -58,7 +50,7 @@ public class H2ORManager extends ORManager {
                 }
 
 
-                String dropStatementQuery = DROP + entityClass.getSimpleName();
+                String dropStatementQuery = DROP + tableName;
                 PreparedStatement dropPriorTableStmt = getConnectionWithDB().prepareStatement(dropStatementQuery);
                 dropPriorTableStmt.executeUpdate();
 
@@ -92,6 +84,17 @@ public class H2ORManager extends ORManager {
         }
     }
 
+    private static String getTableName(Class<?> entityClass) {
+        String tableName = "";
+
+        if (entityClass.isAnnotationPresent(Table.class)) {
+            tableName = entityClass.getDeclaredAnnotation(Table.class).value();
+        } else {
+            tableName = entityClass.getSimpleName();
+        }
+        return tableName;
+    }
+
 
     void columnRename(String tableName, List<Field> columnFields) throws SQLException {
         for (Field field : columnFields) {
@@ -105,19 +108,19 @@ public class H2ORManager extends ORManager {
 
     void getCastedTypeToH2(List<Field> fields, int i, StringBuilder baseSql) {
 /**
-        primary keys need auto_increment and primary key  syntaxes
-*/
+ primary keys need auto_increment and primary key  syntaxes
+ */
 
-        if("UUID".equals(fields.get(i).getType().getSimpleName()) && (fields.get(i).isAnnotationPresent(Id.class))) {
+        if ("UUID".equals(fields.get(i).getType().getSimpleName()) && (fields.get(i).isAnnotationPresent(Id.class))) {
             baseSql.append(fields.get(i).getName() + UUID + AUTO_INCREMENT + PRIMARY_KEY);
 
         } else if ("long".equals(fields.get(i).getType().getSimpleName()) && (fields.get(i).isAnnotationPresent(Id.class))
-                    || "Long".equals(fields.get(i).getType().getSimpleName()) && (fields.get(i).isAnnotationPresent(Id.class))) {
+                || "Long".equals(fields.get(i).getType().getSimpleName()) && (fields.get(i).isAnnotationPresent(Id.class))) {
             baseSql.append(fields.get(i).getName() + BIGINT + AUTO_INCREMENT + PRIMARY_KEY);
 
 /**
-        now not annoted with @Id POJO fields casted to H2 equivalennt type
-*/
+ now not annoted with @Id POJO fields casted to H2 equivalennt type
+ */
 
         } else if ("UUID".equals(fields.get(i).getType().getSimpleName())) {
             baseSql.append(fields.get(i).getName() + UUID);
@@ -148,7 +151,45 @@ public class H2ORManager extends ORManager {
 
     @Override
     <T> Optional<T> findById(Serializable id, Class<T> cls) {
-        return Optional.empty();
+
+        Optional<T> result = Optional.empty();
+
+        if (!cls.isAnnotationPresent(Entity.class)) {
+            log.error("First register a class");
+            return null;
+        }
+
+        String tableName = getTableName(cls);
+
+        String fieldIdName = Arrays.stream(cls.getDeclaredFields())
+                .filter(f -> f.isAnnotationPresent(Id.class))
+                .map(f -> f.getName())
+                .findFirst().get();
+
+        String fieldIdColumnValue = Arrays.stream(cls.getDeclaredFields())
+                .filter(f -> f.isAnnotationPresent(Id.class))
+                .filter(f -> f.isAnnotationPresent(Column.class))
+                .map(f -> f.getAnnotation(Column.class).value())
+                .findFirst().orElse(fieldIdName);
+
+
+        try (PreparedStatement ps = getConnectionWithDB().prepareStatement(SELECT + "*" + FROM + tableName + WHERE + fieldIdColumnValue + EQUAL_QUESTION_MARK)) {
+            ps.setInt(1, (int) id);
+            ResultSet resultSet = ps.executeQuery();
+            ResultSetMetaData metaData = resultSet.getMetaData();
+            int columnCount = metaData.getColumnCount();
+            while (resultSet.next()) {
+                for (int i = 1; i < columnCount; i++) {
+                    T object = (T) resultSet.getObject(i);
+                    result = Optional.ofNullable(object);
+                }
+
+
+            }
+            return result;
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     @Override
