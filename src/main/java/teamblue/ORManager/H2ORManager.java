@@ -11,9 +11,14 @@ import java.io.Serializable;
 import java.lang.reflect.Field;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.time.LocalDate;
+import java.sql.Statement;
 import java.util.*;
+import java.util.stream.Collectors;
+
+import java.time.LocalDate;
+
 import java.util.stream.Stream;
 
 import static teamblue.constants.h2.ConstantsH2.*;
@@ -136,7 +141,111 @@ public class H2ORManager extends ORManager {
     }
 
     @Override
-    Object save(Object o) {
+    Object save(Object object) {
+        StringBuilder saveSql = new StringBuilder();
+        String oClassName = object.getClass()
+                             .getName();
+        Class<?> clazz = null;
+        try {
+            clazz = Class.forName(oClassName);
+        } catch (ClassNotFoundException e) {
+            log.debug("Class was not found!");
+        }
+
+        if (clazz.isAnnotationPresent(Entity.class)) {
+            Field[] declaredFields = clazz.getDeclaredFields();
+
+            if(Arrays.stream(declaredFields).findAny().isEmpty()){
+                log.debug("No fields present to save to database.");
+                throw new RuntimeException("No fields present to save to database");
+            }
+
+            List<String> listOfFieldsName = getFieldsNameWithoutId(declaredFields);
+            List<String> listOfFieldValues = getFieldValuesWithoutId(object, declaredFields);
+
+            String sqlFieldName = listOfFieldsName.stream()
+                                                  .collect(Collectors.joining(", "
+                                                           , LEFT_PARENTHESIS, RIGHT_PARENTHESIS));
+            String sqlFieldValues = listOfFieldValues.stream()
+                                                     .map(field -> "'" + field + "'")
+                                                     .collect(Collectors.joining(", "
+                                                           , LEFT_PARENTHESIS, RIGHT_PARENTHESIS));
+            saveSql.append(INSERT_INTO)
+                   .append(getTableName(Objects.requireNonNull(clazz)))
+                   .append(sqlFieldName)
+                   .append(VALUES)
+                   .append(sqlFieldValues);
+
+            Long generatedKey = null;
+            generatedKey = runSQLAndGetId(saveSql);
+
+            Long finalGeneratedKey = generatedKey;
+            Arrays.stream(declaredFields).filter(field -> field.isAnnotationPresent(Id.class))
+                  .forEach(field -> {
+                      field.setAccessible(true);
+                      try {
+                          field.set(object, finalGeneratedKey);
+                      } catch (IllegalAccessException e) {
+                          log.debug("{}", e.getMessage());
+                          throw new RuntimeException("Unable to set id of the object.");
+                      }
+                  });
+        }
+        return object;
+    }
+
+    private Long runSQLAndGetId(StringBuilder saveSql) {
+        Long generatedKey = null;
+        try (PreparedStatement ps = getConnectionWithDB().prepareStatement(saveSql.toString()
+                , Statement.RETURN_GENERATED_KEYS)){
+            ps.executeUpdate();
+            ResultSet rs = ps.getGeneratedKeys();
+            while (rs.next()){
+                generatedKey = rs.getLong(1);
+            }
+        } catch (SQLException e) {
+            log.debug("{}", e.getMessage());
+            throw new RuntimeException(e.getMessage());
+        }
+        return generatedKey;
+    }
+
+    private List<String> getFieldsNameWithoutId(Field[] declaredFields) {
+        return Arrays.stream(declaredFields)
+                .filter(field -> !field.isAnnotationPresent(Id.class))
+                .map(field -> {
+                    if(field.isAnnotationPresent(Column.class)){
+                        return field.getAnnotation(Column.class).value();
+                    } else {
+                        return field.getName();
+                    }
+                })
+                .collect(Collectors.toList());
+    }
+
+    private List<String> getFieldValuesWithoutId(Object object, Field[] declaredFields) {
+        return Arrays.stream(declaredFields)
+                .filter(field -> !field.isAnnotationPresent(Id.class))
+                     .map(field -> {
+                         try {
+                             field.setAccessible(true);
+                             return String.valueOf(field.get(object));
+                         } catch (IllegalAccessException e) {
+                             throw new RuntimeException(e);
+                         }
+                     })
+                     .collect(Collectors.toList());
+    }
+
+    private static String getTableName(Class<?> clazz) {
+        return clazz.isAnnotationPresent(Table.class) ? clazz.getAnnotation(Table.class)
+                                                             .value() : clazz.getSimpleName();
+    }
+
+
+
+
+    private List<String> getDeclaredFieldsName(Stream<Field> fieldStream) {
         return null;
     }
 
