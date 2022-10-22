@@ -44,7 +44,7 @@ public class H2ORManager extends ORManager {
     }
 
     @Override
-    void register(Class... entityClasses) throws SQLException {
+    void register(Class... entityClasses) {
         for (Class<? extends Class> entityClass : entityClasses) {
 
             if (entityClass.isAnnotationPresent(Entity.class)) {
@@ -56,7 +56,7 @@ public class H2ORManager extends ORManager {
         }
     }
 
-    void registerClass(Class<?> entityClass) throws SQLException {
+    void registerClass(Class<?> entityClass) {
         String tableName = "";
 
         if (entityClass.isAnnotationPresent(Table.class)) {
@@ -88,6 +88,7 @@ public class H2ORManager extends ORManager {
         }
         baseSql.append(RIGHT_PARENTHESIS);
 
+        try {
         PreparedStatement addTableStatement = getConnectionWithDB().prepareStatement(String.valueOf(baseSql));
         addTableStatement.executeUpdate();
 
@@ -96,6 +97,9 @@ public class H2ORManager extends ORManager {
                 .toList();
 
         columnRename(tableName, columnFields);
+        } catch (SQLException e) {
+            log.error("Error of {} occured during creating table", e.getMessage());
+        }
 
         log.info("Created table of name {}", entityClass.getSimpleName());
     }
