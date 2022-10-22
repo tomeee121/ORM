@@ -1,4 +1,4 @@
 DB_DRIVER_CLASS=org.h2.Driver
-DB_URL=jdbc:h2:./src/test/H2DBfile;DB_CLOSE_ON_EXIT=FALSE;AUTO_SERVER=TRUE
+DB_URL=jdbc:h2:./src/test/H2DBfile
 DB_USERNAME=sa
 DB_PASSWORD=

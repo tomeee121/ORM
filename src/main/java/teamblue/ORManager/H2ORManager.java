@@ -12,8 +12,10 @@ import java.lang.annotation.Annotation;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.sql.*;
+import java.text.SimpleDateFormat;
 import java.time.LocalDate;
 import java.util.*;
+import java.util.Date;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -348,6 +350,7 @@ public class H2ORManager extends ORManager {
                 for (var fieldInfo : metaInfoInstanceObjects.getFieldInfos()) {
                     var value = fieldInfo.getRSgetter(resultSet);
                     var field = fieldInfo.getField();
+                    field.setAccessible(true);
                     field.set(newObject, value);
                 }
                 foundAll.add(newObject);
@@ -380,7 +383,8 @@ public class H2ORManager extends ORManager {
 //        Class<T> cls;
 
         MetaInfo of(Class cls) {
-            Arrays.stream(cls.getDeclaredFields()).forEach(field -> fields.add(new FieldInfo(field.getName(), field, cls)));
+            Arrays.stream(cls.getDeclaredFields()).forEach(field -> fields.add(
+                    (new FieldInfo(field.isAnnotationPresent(Column.class) ? field.getAnnotation(Column.class).value() : field.getName(), field, cls))));
             return new MetaInfo(fields);
         }
 
@@ -406,6 +410,12 @@ public class H2ORManager extends ORManager {
 
             public Object getRSgetter(ResultSet rs) {
                 try {
+                    if (rs.getObject(columnName) instanceof Date date) {
+                        SimpleDateFormat formatter = new SimpleDateFormat("yyyy-MM-dd");
+                        String format1 = formatter.format(date);
+                        LocalDate dateFormatted = LocalDate.parse(format1);
+                        return dateFormatted;
+                    }
                     return rs.getObject(columnName);
                 } catch (SQLException e) {
                     throw new RuntimeException(e);

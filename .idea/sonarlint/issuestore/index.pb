@@ -29,12 +29,8 @@ l
 <src/test/java/teamblue/ORManager/HikariDataSourceSample.java,4\6\46f67e85b60adb954c93d32293ea7c5f827d4912
 g
 7src/main/java/teamblue/ORManager/DataSourceFactory.java,3\3\335de771dff396c4bf9b21d7f2b3618e4bc33ac3
-^
-.src/test/java/teamblue/ORManager/BookTest.java,d\3\d3a84a36f56209095b6f15e9a9deb6cbe86e2542
 Y
 )src/main/java/teamblue/ORManager/App.java,5\8\58464a34ecb05f3c2d0ce8d94f0f82690846b9c3
-V
-&src/main/java/teamblue/model/Book.java,9\0\901bc93a7d36fe0cc1d12a3be6ed929b919bbfc2
 r
 Bsrc/test/java/teamblue/ORManager/modelTest/IdInSecondPosition.java,9\1\912ae694253948b1b2de836b0ec217e91e7baaea
 s
