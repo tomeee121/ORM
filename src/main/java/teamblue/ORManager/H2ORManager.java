@@ -8,6 +8,8 @@ import teamblue.annotations.Table;
 
 import javax.sql.DataSource;
 import java.io.Serializable;
+import java.lang.annotation.Annotation;
+import java.lang.reflect.AnnotatedType;
 import java.lang.reflect.Field;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -141,7 +143,6 @@ public class H2ORManager extends ORManager {
 
     @Override
     public Object save(Object object) {
-
         String oClassName = object.getClass().getName();
         Class<?> clazz;
         try {
@@ -151,7 +152,6 @@ public class H2ORManager extends ORManager {
             return object;
         }
         saveObject(object, clazz);
-
         return object;
     }
 
@@ -159,14 +159,9 @@ public class H2ORManager extends ORManager {
         if (!clazz.isAnnotationPresent(Entity.class)) {
             log.info("Class missing @Entity annotation!");
         } else {
-            List<Field> declaredFields = Arrays.stream(clazz.getDeclaredFields())
-                                               .toList();
+            List<Field> declaredFields = Arrays.stream(clazz.getDeclaredFields()).toList();
 
-            StringBuilder saveSql = new StringBuilder();
-
-            if (declaredFields.stream()
-                              .findAny()
-                              .isEmpty()) {
+            if (declaredFields.stream().findAny().isEmpty()) {
                 log.info("No fields present to save to database.");
                 return;
             }
@@ -174,9 +169,11 @@ public class H2ORManager extends ORManager {
             List<String> listOfFieldsName = getFieldsName(declaredFields);
             List<String> listOfFieldValues = getFieldValuesForSaving(object, declaredFields);
             String sqlFieldName = listOfFieldsName.stream()
-                                                  .collect(Collectors.joining(", ", LEFT_PARENTHESIS, RIGHT_PARENTHESIS));
+                                                  .collect(Collectors.joining(", "
+                                                          , LEFT_PARENTHESIS, RIGHT_PARENTHESIS));
             String sqlFieldValues = String.join(", ", listOfFieldValues);
 
+            StringBuilder saveSql = new StringBuilder();
             saveSql.append(INSERT_INTO)
                    .append(getTableName(Objects.requireNonNull(clazz)))
                    .append(sqlFieldName)
@@ -189,24 +186,27 @@ public class H2ORManager extends ORManager {
             try {
                 generatedKey = runSQLAndGetId(saveSql);
             } catch (SQLException e) {
-                log.info("Unable to get correct generated ID.");
+                log.debug("Unable to get correct generated ID.");
                 log.debug("{}", e.getMessage());
                 return;
             }
-            Long finalGeneratedKey = generatedKey;
-            Arrays.stream(clazz.getDeclaredFields())
-                  .filter(field -> field.isAnnotationPresent(Id.class))
-                  .forEach(field -> {
-                      field.setAccessible(true);
-                      try {
-                          field.set(object, finalGeneratedKey);
-                      } catch (IllegalAccessException e) {
-                          log.debug("{}", e.getMessage());
-                      }
-                  });
-            log.info("Object of {} saved successfully", object.getClass()
-                                                              .getSimpleName());
+            setFieldValueWithAnnotation(object, clazz, generatedKey, Id.class);
+            log.info("Object of {} saved successfully with Id: {}", object.getClass()
+                                                              .getSimpleName(), generatedKey);
         }
+    }
+
+    private static void setFieldValueWithAnnotation(Object object, Class<?> clazz, Long finalGeneratedKey, Class<? extends Annotation> classAnnotation) {
+        Arrays.stream(clazz.getDeclaredFields())
+              .filter(field -> field.isAnnotationPresent(classAnnotation))
+              .forEach(field -> {
+                  field.setAccessible(true);
+                  try {
+                      field.set(object, finalGeneratedKey);
+                  } catch (IllegalAccessException e) {
+                      log.debug("{}", e.getMessage());
+                  }
+              });
     }
 
     private Long runSQLAndGetId(StringBuilder saveSql) throws SQLException {
@@ -269,16 +269,46 @@ public class H2ORManager extends ORManager {
                                                              .value() : clazz.getSimpleName();
     }
 
-
-
-
     private List<String> getDeclaredFieldsName(Stream<Field> fieldStream) {
         return null;
     }
 
     @Override
-    void persist(Object o) {
+    void persist(Object object) throws RuntimeException{
+        String oClassName = object.getClass().getName();
+        Class<?> clazz;
+        try {
+            clazz = Class.forName(oClassName);
+        } catch (ClassNotFoundException e) {
+            log.debug("Class was not found!");
+            return;
+        }
+        if (clazz.isAnnotationPresent(Entity.class)) {
+            String result = getStringOfIdIfExist(object, clazz).orElse("");
+            if (result.equals("")) {
+                saveObject(object, clazz);
+            } else {
+                throw new RuntimeException("Class should not have ID!");
+            }
+        } else {
+            log.info("Class missing @Entity annotation!");
+        }
+    }
 
+    private Optional<String> getStringOfIdIfExist(Object object, Class<?> clazz) {
+        return Arrays.stream(clazz.getDeclaredFields())
+                     .filter(field -> field.isAnnotationPresent(Id.class))
+                     .map(field -> {
+                         field.setAccessible(true);
+                         try {
+                             return field.get(object);
+                         } catch (IllegalAccessException e) {
+                             return "error";
+                         }
+                     })
+                     .filter(Objects::nonNull)
+                     .map(Object::toString)
+                     .findAny();
     }
 
     @Override
