@@ -9,7 +9,7 @@
     </appender>
 
     <!-- Levels: TRACE, INFO, WARN, ERROR, DEBUG, ALL, OFF    -->
-    <root level="info">
+    <root level="debug">
         <appender-ref ref="STDOUT" />
     </root>
 </configuration>
