@@ -23,6 +23,7 @@ import static teamblue.constants.h2.ConstantsH2.DROP_IF_EXISTS_BOOKS;
 
 public class FindAllTest {
 
+
     private static final Logger log = LoggerFactory.getLogger(FindAllTest.class);
     private ORManager orManager;
 
@@ -83,25 +84,6 @@ public class FindAllTest {
             }
         }
     }
-
-
-
-
-
-//    @Test
-//    public void shouldThrowException_whereClassWasNotFound(){
-//        // Given
-//        class  BookTest{
-//        }
-//        BookTest bookTest = new BookTest();
-//        // When
-//        //Then
-//        assertThatThrownBy(() -> orManager.save(bookTest))
-//                .isInstanceOf(RuntimeException.class)
-//                .hasMessage("Class was not found");
-//    }
-
-
 
 
 }
