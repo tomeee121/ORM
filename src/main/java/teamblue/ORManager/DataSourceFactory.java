@@ -41,7 +41,7 @@ public class DataSourceFactory {
 
         if (props.getProperty("POOL_SIZE") != null) {
             hikariConfig.setMaximumPoolSize(Integer.parseInt(props.getProperty("POOL_SIZE")));
-        } else hikariConfig.setMaximumPoolSize(10);
+        } else hikariConfig.setMaximumPoolSize(30);
 
         hikariConfig.setPoolName("ORM_POOL");
         hikariConfig.addDataSourceProperty("dataSource.cachePrepStmts", "true");

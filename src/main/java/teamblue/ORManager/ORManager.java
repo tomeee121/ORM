@@ -4,6 +4,7 @@ import lombok.*;
 
 import javax.sql.DataSource;
 import java.io.Serializable;
+import java.lang.reflect.InvocationTargetException;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.List;
@@ -26,7 +27,7 @@ public abstract class ORManager {
 
     abstract <T> Optional<T> findById(Serializable id, Class<T> cls);
 
-    abstract <T> List<T> findAll(Class<T> cls);
+    abstract <T> List<T> findAll(Class<T> cls) throws SQLException, InstantiationException, IllegalAccessException, NoSuchMethodException, InvocationTargetException;
 
     abstract <T> Iterable<T> findAllAsIterable(Class<T> cls); // (MEDIUM)
     abstract <T> Stream<T> findAllAsStream(Class<T> cls);     // (OPTIONAL)

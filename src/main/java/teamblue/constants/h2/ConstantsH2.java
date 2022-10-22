@@ -1,9 +1,7 @@
 package teamblue.constants.h2;
 
 public class ConstantsH2 {
-    public static final String SELECT = "SELECT ";
-    public static final String FROM = " FROM ";
-    public static final String WHERE = " WHERE ";
+    public static final String SELECT_ALL_FROM = "SELECT * FROM ";
     public static final String ALTER = " ALTER ";
     public static final String RENAME_TO = " RENAME TO ";
 
