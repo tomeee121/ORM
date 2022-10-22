@@ -13,8 +13,6 @@ Z
 pom.xml,4\4\442292b8a7efeabbe4cc176709b833b1792140ec
 [
 +src/main/java/teamblue/model/Publisher.java,7\2\72bcf25a70693a8a5f19386545b3746669bc5874
-V
-&src/main/java/teamblue/model/Book.java,9\0\901bc93a7d36fe0cc1d12a3be6ed929b919bbfc2
 ]
 -src/main/java/teamblue/annotations/Table.java,b\3\b3112f2bd795b6ee90f1acfaee5bca0e8edc69cf
 ^
@@ -29,7 +27,5 @@ d
 4src/main/java/teamblue/ORManager/MySQLORManager.java,3\6\36997dc1165d1d6efcab5ee44a3f36274aa0a3e7
 k
 ;src/test/java/teamblue/ORManager/DataSourceFactoryTest.java,1\4\14e9dc0f5a87eef0f333401f17a645b5dfb4b5f4
-j
-:src/test/java/teamblue/ORManager/RegisterH2MethodTest.java,3\c\3cc570f73321ee443e8faf616154d134cee370f4
 l
 <src/test/java/teamblue/ORManager/HikariDataSourceSample.java,4\6\46f67e85b60adb954c93d32293ea7c5f827d4912

@@ -10,6 +10,7 @@ public class ConstantsH2 {
     public static final String UUID = " UUID";
     public static final String AUTO_INCREMENT = " auto_increment ";
     public static final String PRIMARY_KEY = "primary key";
+    public static final String DROP_IF_EXISTS_BOOKS = "drop table if exists BOOKS";
 
     public static final String INSERT_INTO = "INSERT INTO ";
     public static final String VALUES = " VALUES ";
