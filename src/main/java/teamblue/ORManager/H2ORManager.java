@@ -9,18 +9,12 @@ import teamblue.annotations.Table;
 import javax.sql.DataSource;
 import java.io.Serializable;
 import java.lang.annotation.Annotation;
-import java.lang.reflect.AnnotatedType;
+import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.sql.Statement;
+import java.sql.*;
+import java.time.LocalDate;
 import java.util.*;
 import java.util.stream.Collectors;
-
-import java.time.LocalDate;
-
 import java.util.stream.Stream;
 
 import static teamblue.constants.h2.ConstantsH2.*;
@@ -86,8 +80,8 @@ public class H2ORManager extends ORManager {
         addTableStatement.executeUpdate();
 
         List<Field> columnFields = Arrays.stream(declaredFields)
-                                         .filter(f -> f.isAnnotationPresent(Column.class))
-                                         .toList();
+                .filter(f -> f.isAnnotationPresent(Column.class))
+                .toList();
 
         columnRename(tableName, columnFields);
 
@@ -98,9 +92,11 @@ public class H2ORManager extends ORManager {
     void columnRename(String tableName, List<Field> columnFields) throws SQLException {
         for (Field field : columnFields) {
             getConnectionWithDB().prepareStatement(ALTER_TABLE + tableName
-                                        + ALTER_COLUMN + field.getName().toUpperCase() + RENAME_TO +
-                                         field.getAnnotation(Column.class).value())
-                                        .executeUpdate();
+                            + ALTER_COLUMN + field.getName()
+                            .toUpperCase() + RENAME_TO +
+                            field.getAnnotation(Column.class)
+                                    .value())
+                    .executeUpdate();
         }
     }
 
@@ -316,10 +312,104 @@ public class H2ORManager extends ORManager {
         return Optional.empty();
     }
 
+
     @Override
     <T> List<T> findAll(Class<T> cls) {
-        return null;
+
+        String tableName = "";
+
+        if (cls.isAnnotationPresent(Table.class)) {
+            tableName = cls.getAnnotation(Table.class)
+                    .value();
+        } else {
+            tableName = cls.getSimpleName();
+        }
+
+        String baseSql = SELECT_ALL_FROM + tableName;
+
+        PreparedStatement findAllStmt = null;
+        List<T> foundAll = new ArrayList<>();
+        try {
+            findAllStmt = getConnectionWithDB().prepareStatement(baseSql);
+            ResultSet resultSet = null;
+            resultSet = findAllStmt.executeQuery();
+            int nrOfColumns = resultSet.getMetaData().getColumnCount();
+            Constructor<T> constructor = cls.getDeclaredConstructor();
+            constructor.setAccessible(true);
+            T newObject = constructor.newInstance();
+
+            MetaInfo metaInfo = new MetaInfo();
+            while (resultSet.next()) {
+                MetaInfo metaInfoInstanceObjects = metaInfo.of(cls);
+                for (var fieldInfo : metaInfoInstanceObjects.getFieldInfos()) {
+                    var value = fieldInfo.getRSgetter(resultSet);
+                    var field = fieldInfo.getField();
+                    field.set(newObject, value);
+                }
+                foundAll.add(newObject);
+
+            }
+        } catch (ReflectiveOperationException e) {
+            throw new RuntimeException("Exception of reflecive operation");
+        } catch (SQLException e) {
+            throw new RuntimeException("SQL Exception");
+        }
+
+        return foundAll;
     }
+
+
+
+
+    class MetaInfo {
+        //        Map<Class, MetaInfo> cache = new HashMap<>();
+        List<FieldInfo> fields = new ArrayList<>();
+
+        MetaInfo() {
+        }
+
+        MetaInfo(List<FieldInfo> fields) {
+            this.fields = fields;
+        }
+
+        String tableName;
+//        Class<T> cls;
+
+        MetaInfo of(Class cls) {
+            Arrays.stream(cls.getDeclaredFields()).forEach(field -> fields.add(new FieldInfo(field.getName(), field, cls)));
+            return new MetaInfo(fields);
+        }
+
+
+        List<FieldInfo> getFieldInfos() {
+            return fields;
+        }
+
+        public static class FieldInfo {
+            String columnName;
+            Field field;
+            Class type;
+
+            public FieldInfo(String columnName, Field field, Class type) {
+                this.columnName = columnName;
+                this.field = field;
+                this.type = type;
+            }
+
+            public Field getField() {
+                return field;
+            }
+
+            public Object getRSgetter(ResultSet rs) {
+                try {
+                    return rs.getObject(columnName);
+                } catch (SQLException e) {
+                    throw new RuntimeException(e);
+                }
+            }
+        }
+    }
+
 
     @Override
     <T> Iterable<T> findAllAsIterable(Class<T> cls) {
