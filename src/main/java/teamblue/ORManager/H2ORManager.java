@@ -12,8 +12,10 @@ import java.lang.annotation.Annotation;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.sql.*;
+import java.text.SimpleDateFormat;
 import java.time.LocalDate;
 import java.util.*;
+import java.util.Date;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -406,6 +408,12 @@ public class H2ORManager extends ORManager {
 
             public Object getRSgetter(ResultSet rs) {
                 try {
+                    if (rs.getObject(columnName) instanceof Date date) {
+                        SimpleDateFormat formatter = new SimpleDateFormat("yyyy-MM-dd");
+                        String format1 = formatter.format(date);
+                        LocalDate dateFormatted = LocalDate.parse(format1);
+                        return dateFormatted;
+                    }
                     return rs.getObject(columnName);
                 } catch (SQLException e) {
                     throw new RuntimeException(e);
