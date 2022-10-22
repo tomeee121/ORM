@@ -8,25 +8,13 @@ import teamblue.annotations.Table;
 
 import javax.sql.DataSource;
 import java.io.Serializable;
-import java.lang.reflect.Constructor;
 import java.lang.annotation.Annotation;
-import java.lang.reflect.AnnotatedType;
+import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.SQLException;
+import java.sql.*;
 import java.time.LocalDate;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Optional;
-import java.sql.Statement;
 import java.util.*;
 import java.util.stream.Collectors;
-
-import java.time.LocalDate;
-
 import java.util.stream.Stream;
 
 import static teamblue.constants.h2.ConstantsH2.*;
@@ -324,6 +312,7 @@ public class H2ORManager extends ORManager {
         return Optional.empty();
     }
 
+
     @Override
     <T> List<T> findAll(Class<T> cls) {
 
@@ -368,6 +357,9 @@ public class H2ORManager extends ORManager {
 
         return foundAll;
     }
+
+
+
 
     class MetaInfo {
         //        Map<Class, MetaInfo> cache = new HashMap<>();
@@ -417,6 +409,7 @@ public class H2ORManager extends ORManager {
             }
         }
     }
+
 
     @Override
     <T> Iterable<T> findAllAsIterable(Class<T> cls) {
