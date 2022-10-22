@@ -9,7 +9,6 @@ import teamblue.ORManager.modelTest.IdInSecondPosition;
 import teamblue.ORManager.modelTest.MissingIdAnnotation;
 import teamblue.ORManager.modelTest.WithOneIdField;
 import teamblue.annotations.Entity;
-import teamblue.annotations.Id;
 import teamblue.annotations.Table;
 import teamblue.model.Book;
 
@@ -17,7 +16,6 @@ import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.LocalDate;
-import java.util.Arrays;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -55,7 +53,7 @@ public class SaveH2MethodTest {
         orManager.register(book.getClass());
 
         long newId = getSizeOfTable(tableName) + 1L;
-        orManager.save(book);
+        book = (Book) orManager.save(book);
 
         assertThat(book).hasFieldOrPropertyWithValue("Id", newId);
     }
