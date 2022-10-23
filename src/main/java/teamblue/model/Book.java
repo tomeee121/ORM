@@ -48,4 +48,13 @@ public class Book {
     public void setPublishedAt(LocalDate publishedAt) {
         this.publishedAt = publishedAt;
     }
+
+    @Override
+    public String toString() {
+        return "Book{" +
+                "id=" + id +
+                ", title='" + title + '\'' +
+                ", publishedAt=" + publishedAt +
+                '}';
+    }
 }

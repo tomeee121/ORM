@@ -383,7 +383,9 @@ public class H2ORManager extends ORManager {
 //        Class<T> cls;
 
         MetaInfo of(Class cls) {
-            Arrays.stream(cls.getDeclaredFields()).forEach(field -> fields.add(
+            Arrays.stream(cls.getDeclaredFields())
+                    .peek(f -> f.setAccessible(true))
+                    .forEach(field -> fields.add(
                     (new FieldInfo(field.isAnnotationPresent(Column.class) ? field.getAnnotation(Column.class).value() : field.getName(), field, cls))));
             return new MetaInfo(fields);
         }
