@@ -29,11 +29,6 @@ public class ConstantsH2 {
     public static final String DOUBLE_PRECISION = " DOUBLE PRECISION";
     public static final String BOOLEAN = " BOOLEAN";
 
-
-
-
-
-
     public static final String DROP = "DROP TABLE IF EXISTS ";
 
 }
