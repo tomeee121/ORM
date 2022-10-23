@@ -47,7 +47,7 @@ public class ORMCacheTest {
 
         //then
         int nrOfCachedElementsAfterSavingToDB = H2ORManager.MetaInfo.getCache().get(Book.class).size();
-        Assertions.assertThat(nrOfCachedElementsAfterSavingToDB).isEqualTo(2);
+        Assertions.assertThat(nrOfCachedElementsAfterSavingToDB).isGreaterThan(1);
         Assertions.assertThat(books).containsAnyOf(harry);
         Assertions.assertThat(books).containsAnyOf(cypher_fortress);
     }
