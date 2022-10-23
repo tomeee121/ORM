@@ -17,7 +17,7 @@ public class ConstantsMysql {
     public static final String LEFT_PARENTHESIS = " (";
     public static final String RIGHT_PARENTHESIS = ")";
     public static final String ALTER_TABLE = "ALTER TABLE ";
-    public static final String ALTER_COLUMN = " ALTER COLUMN ";
+    public static final String MODIFY = " MODIFY ";
     public static final String CREATE_TABLE_IF_NOT_EXISTS = "CREATE TABLE IF NOT EXISTS ";
     public static final String PRIMARY_KEY_AUTO_INCREMENT = "PRIMARY KEY AUTO_INCREMENT";
     public static final String FOREIGN_KEY = "FOREIGN KEY";
