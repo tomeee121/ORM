@@ -401,7 +401,6 @@ public class H2ORManager extends ORManager {
         }
 
         static Set<Object> newCache = new HashSet<>();
-
         static void establishNewCache(List<Object> newlyFoundInDBObjects, Class cls) {
             Set<Object> metaInfoFromCache = getCache().get(cls);
             for (var latelyFound : newlyFoundInDBObjects) {
@@ -418,6 +417,11 @@ public class H2ORManager extends ORManager {
 
         static void addToCache(Class cls, Set objects) {
             objects.stream().forEach(upgradeCacheWithEl -> cache.get(cls).add(upgradeCacheWithEl));
+        }
+
+        static void clearCache() {
+            newCache.clear();
+            cache.values().clear();
         }
 
         public static Map<Class, Set<Object>> getCache() {

@@ -2,6 +2,7 @@ package teamblue.ORManager;
 
 import org.assertj.core.api.Assertions;
 import org.junit.After;
+import org.junit.Before;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -20,19 +21,20 @@ import static teamblue.constants.h2.ConstantsH2.DROP_IF_EXISTS_BOOKS;
 
 public class ORMCacheTest {
 
-
-    private static final Logger log = LoggerFactory.getLogger(ORMCacheTest.class);
     private H2ORManager orManager;
+
+    @Before
+    public void setUp() throws SQLException {
+        orManager = (H2ORManager) ORManagerFactory.withPropertiesFrom("src/test/resources/db.file");
+        H2ORManager.MetaInfo.clearCache();
+    }
 
     @Test
     public void shouldAddToCacheRightNrOfElements_whenSaveAndFindInvoked() throws SQLException, InvocationTargetException, InstantiationException, IllegalAccessException, NoSuchMethodException {
 
-        //given
-        orManager = (H2ORManager) ORManagerFactory.withPropertiesFrom("src/test/resources/db.file");
         Assertions
                 .assertThatThrownBy(() -> H2ORManager.MetaInfo.getCache().get(Book.class).size())
-                .isInstanceOf(NullPointerException.class)
-                .hasMessage("Cannot invoke \"java.util.Set.size()\" because the return value of \"java.util.Map.get(Object)\" is null");
+                .isInstanceOf(NullPointerException.class);
 
         //when
         orManager.register(Book.class);
