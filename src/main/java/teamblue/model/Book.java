@@ -1,5 +1,6 @@
 package teamblue.model;
 
+import lombok.EqualsAndHashCode;
 import teamblue.annotations.Column;
 import teamblue.annotations.Entity;
 import teamblue.annotations.Id;
@@ -7,6 +8,7 @@ import teamblue.annotations.Table;
 
 import java.time.LocalDate;
 
+@EqualsAndHashCode
 @Entity
 @Table(value ="Books")
 public class Book {
@@ -47,5 +49,14 @@ public class Book {
 
     public void setPublishedAt(LocalDate publishedAt) {
         this.publishedAt = publishedAt;
+    }
+
+    @Override
+    public String toString() {
+        return "Book{" +
+                "id=" + id +
+                ", title='" + title + '\'' +
+                ", publishedAt=" + publishedAt +
+                '}';
     }
 }
