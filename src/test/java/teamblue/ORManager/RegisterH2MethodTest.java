@@ -14,7 +14,7 @@ public class RegisterH2MethodTest {
     @Before
     public void setUpDatabase() throws SQLException {
         ORManager orManager = ORManagerFactory.withPropertiesFrom("src/test/resources/db.file");
-        orManager.getConnectionWithDB().prepareStatement("DROP TABLE BOOKS").execute();
+        orManager.getConnectionWithDB().prepareStatement("DROP TABLE IF EXISTS BOOKS").execute();
     }
 
     @Test

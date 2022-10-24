@@ -12,14 +12,12 @@ import java.lang.annotation.Annotation;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.sql.*;
-import java.text.SimpleDateFormat;
 import java.time.LocalDate;
-import java.util.Date;
 import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static teamblue.ORManager.H2ORManager.MetaInfo.*;
+import static teamblue.ORManager.MetaInfo.*;
 import static teamblue.constants.h2.ConstantsH2.*;
 
 @Slf4j
@@ -103,8 +101,7 @@ public class H2ORManager extends ORManager {
             getConnectionWithDB().prepareStatement(ALTER_TABLE + tableName
                             + ALTER_COLUMN + field.getName()
                             .toUpperCase() + RENAME_TO +
-                            field.getAnnotation(Column.class)
-                                    .value())
+                            field.getAnnotation(Column.class).value())
                     .executeUpdate();
         }
     }
@@ -257,7 +254,8 @@ public class H2ORManager extends ORManager {
                             } else {
                                 return "";
                             }
-                        } else {
+                        }
+                        else {
                             field.setAccessible(true);
                             return String.valueOf(field.get(object));
                         }
@@ -281,7 +279,7 @@ public class H2ORManager extends ORManager {
     }
 
     @Override
-    void persist(Object object) throws RuntimeException {
+    void persist(Object object) {
         String oClassName = object.getClass().getName();
         Class<?> clazz;
         try {
@@ -319,7 +317,8 @@ public class H2ORManager extends ORManager {
                 .findAny();
     }
 
-    private String getFieldName(Field field){
+
+    private String getFieldName(Field field) {
         return field.isAnnotationPresent(Column.class) ? field.getAnnotation(Column.class).value() : field.getName();
     }
 
@@ -340,34 +339,34 @@ public class H2ORManager extends ORManager {
 
         try {
             PreparedStatement ps = getConnectionWithDB().prepareStatement(sqlStatement);
-            ps.setInt(1,(int)id);
+            ps.setInt(1, (int) id);
             ResultSet rs = ps.executeQuery();
             Constructor<T> declaredConstructor = cls.getDeclaredConstructor();
             declaredConstructor.setAccessible(true);
             MetaInfo metaInfo = new MetaInfo();
 
-            while(rs.next()){
+            while (rs.next()) {
                 T newObject = declaredConstructor.newInstance();
                 MetaInfo metaInfoOfClass = metaInfo.of(cls);
-                for(FieldInfo field : metaInfoOfClass.getFieldInfos()){
+                for (FieldInfo field : metaInfoOfClass.getFieldInfos()) {
                     Object value = field.getRSgetter(rs);
                     Field thisField = field.getField();
                     thisField.setAccessible(true);
-                    thisField.set(newObject,value);
+                    thisField.set(newObject, value);
                 }
 
                 result = Optional.of(newObject);
 
 
-                log.info("Result from finding by id {} is {}", id,newObject);
+                log.info("Result from finding by id {} is {}", id, newObject);
             }
 
 
         } catch (SQLException | ReflectiveOperationException e) {
             throw new RuntimeException(e);
         }
-        if(result.isEmpty()){
-            log.info("There is no such object with given ID: {} in {}",id,cls.getSimpleName());
+        if (result.isEmpty()) {
+            log.info("There is no such object with given ID: {} in {}", id, cls.getSimpleName());
             throw new NoSuchElementException();
         }
         return result;
@@ -393,7 +392,6 @@ public class H2ORManager extends ORManager {
             findAllStmt = getConnectionWithDB().prepareStatement(baseSql);
             ResultSet resultSet = null;
             resultSet = findAllStmt.executeQuery();
-            int nrOfColumns = resultSet.getMetaData().getColumnCount();
             Constructor<T> constructor = cls.getDeclaredConstructor();
             constructor.setAccessible(true);
 
@@ -415,110 +413,12 @@ public class H2ORManager extends ORManager {
             setIsCacheUpToDate(true);
 
         } catch (ReflectiveOperationException e) {
-            log.error("Exception of reflective operation in FindAll()");
-            throw new RuntimeException("Exception of reflective operation in FindAll()");
+            throw new RuntimeException("Exception of reflective operation");
         } catch (SQLException e) {
-            log.error("SQL Exception");
             throw new RuntimeException("SQL Exception");
         }
 
         return foundAll;
-    }
-
-    class MetaInfo {
-        List<FieldInfo> fields = new ArrayList<>();
-        static Map<Class, Set<Object>> cache = new HashMap<>();
-        static boolean isCacheUpToDate = false;
-
-        MetaInfo() {
-        }
-
-        MetaInfo(List<FieldInfo> fields) {
-            this.fields = fields;
-        }
-
-
-        MetaInfo of(Class cls) {
-            Arrays.stream(cls.getDeclaredFields())
-                    .peek(f -> f.setAccessible(true))
-                    .forEach(field -> fields.add(
-                            (new FieldInfo(field.isAnnotationPresent(Column.class) ? field.getAnnotation(Column.class).value() : field.getName(), field, cls))));
-            return new MetaInfo(fields);
-        }
-
-        static Set<Object> newCache = new HashSet<>();
-        static void establishNewCache(List<Object> newlyFoundInDBObjects, Class cls) {
-            Set<Object> metaInfoFromCache = getCache().get(cls);
-            for (var latelyFound : newlyFoundInDBObjects) {
-                if (!metaInfoFromCache.contains(latelyFound)) {
-                    newCache.add(latelyFound);
-                }
-            }
-
-            Set<Object> oldCache = getCache().get(cls);
-            Set<Object> wholeCache = Stream.of(oldCache, newCache)
-                    .flatMap(list -> list.stream()).collect(Collectors.toSet());
-            addToCache(cls, wholeCache);
-        }
-
-        static void addToCache(Class cls, Set objects) {
-            objects.stream().forEach(upgradeCacheWithEl -> cache.get(cls).add(upgradeCacheWithEl));
-        }
-
-        static void clearCache() {
-            newCache.clear();
-            cache.values().clear();
-        }
-
-        public static Map<Class, Set<Object>> getCache() {
-            return cache;
-        }
-
-        public static void setCache(Map<Class, Set<Object>> cache) {
-            MetaInfo.cache = cache;
-        }
-
-        public static boolean isIsCacheUpToDate() {
-            return isCacheUpToDate;
-        }
-
-        public static void setIsCacheUpToDate(boolean isCacheUpToDate) {
-            MetaInfo.isCacheUpToDate = isCacheUpToDate;
-        }
-
-        List<FieldInfo> getFieldInfos() {
-            return fields;
-        }
-
-        public static class FieldInfo {
-            String columnName;
-            Field field;
-            Class type;
-
-            public FieldInfo(String columnName, Field field, Class type) {
-                this.columnName = columnName;
-                this.field = field;
-                this.type = type;
-            }
-
-            public Field getField() {
-                return field;
-            }
-
-            public Object getRSgetter(ResultSet rs) {
-                try {
-                    if (rs.getObject(columnName) instanceof Date date) {
-                        SimpleDateFormat formatter = new SimpleDateFormat("yyyy-MM-dd");
-                        String format1 = formatter.format(date);
-                        LocalDate dateFormatted = LocalDate.parse(format1);
-                        return dateFormatted;
-                    }
-                    return rs.getObject(columnName);
-                } catch (SQLException e) {
-                    throw new RuntimeException(e);
-                }
-            }
-        }
     }
 
 
@@ -534,7 +434,56 @@ public class H2ORManager extends ORManager {
 
     @Override
     <T> T merge(T o) {
-        return null;
+        Class<?> cls = o.getClass();
+
+        String valueOfField = getStringOfIdIfExist(o, cls).orElse("");
+        if(valueOfField.equals("")){
+            throw new NoSuchElementException();
+        }
+
+
+        String fieldIdName = Arrays.stream(cls.getDeclaredFields())
+                .filter(f -> f.isAnnotationPresent(Id.class))
+                .map(Field::getName)
+                .findFirst().get();
+
+
+        String tableName = getTableName(cls);
+
+        MetaInfo metaInfo = new MetaInfo();
+        MetaInfo of = metaInfo.of(cls);
+
+        List<FieldInfo> fieldInfos = of.getFieldInfos();
+        List<String> fieldValuesForSaving = getFieldValuesForSaving(o, Arrays.stream(cls.getDeclaredFields()).toList())
+                .stream()
+                .map(s -> s.replace("'",""))
+                .toList();
+
+        int i = 0;
+
+        for (FieldInfo fieldInfo : fieldInfos) {
+
+            if(!fieldInfo.columnName.equals(fieldIdName)) {
+                String updateSql = UPDATE + tableName + SET + fieldInfo.columnName + EQUAL_QUESTION_MARK + WHERE + fieldIdName + EQUAL_QUESTION_MARK;
+                try {
+                    PreparedStatement ps = getConnectionWithDB().prepareStatement(updateSql);
+                    if(fieldInfo.getField().getType().getSimpleName().equals("LocalDate")){
+                        LocalDate dateFormatted = LocalDate.parse(fieldValuesForSaving.get(i));
+                        ps.setObject(1,dateFormatted);
+                    } else {
+                        ps.setObject(1, fieldValuesForSaving.get(i));
+                    }
+                    ps.setString(2, valueOfField);
+                    ps.execute();
+                } catch (SQLException e) {
+                    throw new RuntimeException(e);
+                }
+            }
+            i++;
+        }
+
+        return o;
+
     }
 
     @Override
@@ -553,34 +502,34 @@ public class H2ORManager extends ORManager {
                         ? field.getAnnotation(Column.class).value() : field.getName())
                 .findAny().orElseThrow();
 
-        if(!valueOfField.equals("")){
+        if (!valueOfField.equals("")) {
             StringBuilder deleteSQL = new StringBuilder();
             deleteSQL.append(DELETE_FROM)
-                     .append(getTableName(classOfObject))
-                     .append(" WHERE ")
-                     .append(fieldName)
-                     .append(" = ")
-                     .append(valueOfField);
+                    .append(getTableName(classOfObject))
+                    .append(" WHERE ")
+                    .append(fieldName)
+                    .append(" = ")
+                    .append(valueOfField);
 
-            try (PreparedStatement ps = getConnectionWithDB().prepareStatement(deleteSQL.toString())){
+            try (PreparedStatement ps = getConnectionWithDB().prepareStatement(deleteSQL.toString())) {
                 ps.execute();
                 log.debug("Object deleted from DB successfully.");
                 MetaInfo.setIsCacheUpToDate(false);
             } catch (SQLException e) {
-                log.debug("Unable to delete object from DB. Message: {}",e.getSQLState());
+                log.debug("Unable to delete object from DB. Message: {}", e.getSQLState());
             }
             Arrays.stream(declaredFields).filter(field -> field.isAnnotationPresent(Id.class))
                     .forEach(field -> {
-                            try {
-                                field.setAccessible(true);
-                                if(field.getType().getSimpleName().equals("long")) {
-                                    field.set(o, 0L);
-                                } else if(field.getType().getSimpleName().equals("Long")){
-                                    field.set(o,null);
-                                }
-                            } catch (IllegalAccessException e) {
-                                log.debug("Unable to set object a null/0 value");
+                        try {
+                            field.setAccessible(true);
+                            if (field.getType().getSimpleName().equals("long")) {
+                                field.set(o, 0L);
+                            } else if (field.getType().getSimpleName().equals("Long")) {
+                                field.set(o, null);
                             }
+                        } catch (IllegalAccessException e) {
+                            log.debug("Unable to set object a null/0 value");
+                        }
                     });
             return true;
         }

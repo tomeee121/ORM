@@ -11,13 +11,12 @@ import teamblue.model.Book;
 import java.lang.reflect.InvocationTargetException;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
-import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.LocalDate;
 import java.util.Arrays;
 import java.util.List;
 
-import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.*;
 import static teamblue.constants.h2.ConstantsH2.DROP_IF_EXISTS_BOOKS;
 
 
@@ -51,8 +50,8 @@ public class FindAllTest {
 
         List<Book> books = orManager.findAll(Book.class);
         List<String> titles = Arrays.asList("Harry Potter", "Cypher Fortress");
-        Assertions.assertThat(titles).containsAnyOf(books.get(0).getTitle());
-        Assertions.assertThat(titles).containsAnyOf(books.get(1).getTitle());
+        assertEquals(titles.get(0),books.get(0).getTitle());
+        assertEquals(titles.get(1),books.get(1).getTitle());
     }
 
     @Test
