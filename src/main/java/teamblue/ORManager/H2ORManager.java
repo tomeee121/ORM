@@ -467,12 +467,8 @@ public class H2ORManager extends ORManager {
                 String updateSql = UPDATE + tableName + SET + fieldInfo.columnName + EQUAL_QUESTION_MARK + WHERE + fieldIdName + EQUAL_QUESTION_MARK;
                 try {
                     PreparedStatement ps = getConnectionWithDB().prepareStatement(updateSql);
-                    if(fieldInfo.getField().getType().getSimpleName().equals("LocalDate")){
-                        LocalDate dateFormatted = LocalDate.parse(fieldValuesForSaving.get(i));
-                        ps.setObject(1,dateFormatted);
-                    } else {
+                        ps.setObject(1,fieldValuesForSaving.get(i));
                         ps.setObject(1, fieldValuesForSaving.get(i));
-                    }
                     ps.setString(2, valueOfField);
                     ps.execute();
                 } catch (SQLException e) {
