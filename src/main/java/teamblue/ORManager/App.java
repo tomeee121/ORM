@@ -18,9 +18,12 @@ public class App
 
         Book harry = new Book("Harry", LocalDate.now());
         Book Potter = new Book("Potter", LocalDate.now());
+        harry.setPublishedAt(LocalDate.of(2020,12,12));
         orManager.save(harry);
-        orManager.findById(10, Book.class);
-        findAllCheck(orManager);
+        orManager.merge(harry);
+        orManager.findById(1, Book.class);
+
+
 
 
 

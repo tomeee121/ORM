@@ -5,6 +5,8 @@ public class ConstantsH2 {
     public static final String ALTER = " ALTER ";
     public static final String DELETE_FROM = "DELETE FROM ";
     public static final String WHERE = " WHERE ";
+    public static final String UPDATE = " UPDATE ";
+    public static final String SET = " SET ";
     public static final String RENAME_TO = " RENAME TO ";
 
 

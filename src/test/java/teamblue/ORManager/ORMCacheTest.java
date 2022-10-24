@@ -4,8 +4,6 @@ import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import teamblue.model.Book;
 
 import java.lang.reflect.InvocationTargetException;
@@ -13,7 +11,6 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.time.LocalDate;
-import java.util.Arrays;
 import java.util.List;
 
 import static teamblue.constants.h2.ConstantsH2.DROP_IF_EXISTS_BOOKS;
@@ -26,18 +23,18 @@ public class ORMCacheTest {
     @Before
     public void setUp() throws SQLException {
         orManager = (H2ORManager) ORManagerFactory.withPropertiesFrom("src/test/resources/db.file");
-        H2ORManager.MetaInfo.clearCache();
+        MetaInfo.clearCache();
     }
 
     @Test
     public void shouldAddToCacheRightNrOfElements_whenSaveAndFindInvoked() throws SQLException, InvocationTargetException, InstantiationException, IllegalAccessException, NoSuchMethodException {
 
         Assertions
-                .assertThatThrownBy(() -> H2ORManager.MetaInfo.getCache().get(Book.class).size())
+                .assertThatThrownBy(() -> MetaInfo.getCache().get(Book.class).size())
                 .isInstanceOf(NullPointerException.class);
 
         //when
-        H2ORManager.MetaInfo.clearCache();
+        MetaInfo.clearCache();
         orManager.register(Book.class);
         Book harry = new Book("Harry Potter", LocalDate.of(2011, 11, 28));
         Book cypher_fortress = new Book("Cypher Fortress", LocalDate.of(1998, 11, 9));
@@ -46,7 +43,7 @@ public class ORMCacheTest {
         List<Book> books = orManager.findAll(Book.class);
 
         //then
-        int nrOfCachedElementsAfterSavingToDB = H2ORManager.MetaInfo.getCache().get(Book.class).size();
+        int nrOfCachedElementsAfterSavingToDB = MetaInfo.getCache().get(Book.class).size();
         Assertions.assertThat(nrOfCachedElementsAfterSavingToDB).isGreaterThan(1);
         Assertions.assertThat(books).containsAnyOf(harry);
         Assertions.assertThat(books).containsAnyOf(cypher_fortress);

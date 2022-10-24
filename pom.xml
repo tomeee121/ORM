@@ -19,9 +19,9 @@
     <hikari.version>5.0.1</hikari.version>
     <h2.version>2.1.212</h2.version>
     <lombok.version>1.18.24</lombok.version>
-    <junit.version>4.11</junit.version>
+    <junit.version>4.13.2</junit.version>
     <assertj.version>3.23.1</assertj.version>
-    <log4j.version>2.6.1</log4j.version>
+    <log4j.version>2.19.0</log4j.version>
   </properties>
 
   <dependencies>
