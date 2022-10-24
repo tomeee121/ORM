@@ -17,8 +17,11 @@ public class App
         orManager.register(Book.class);
 
         Book harry = new Book("Harry", LocalDate.now());
+        Book Potter = new Book("Potter", LocalDate.now());
         orManager.save(harry);
+        orManager.findById(10, Book.class);
         findAllCheck(orManager);
+
 
 
     }
@@ -43,4 +46,5 @@ public class App
 
 
     }
+
 }

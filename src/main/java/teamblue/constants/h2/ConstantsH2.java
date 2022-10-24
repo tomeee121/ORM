@@ -3,7 +3,10 @@ package teamblue.constants.h2;
 public class ConstantsH2 {
     public static final String SELECT_ALL_FROM = "SELECT * FROM ";
     public static final String ALTER = " ALTER ";
+    public static final String DELETE_FROM = "DELETE FROM ";
+    public static final String WHERE = " WHERE ";
     public static final String RENAME_TO = " RENAME TO ";
+
 
     public static final String EQUAL_QUESTION_MARK = " =? ";
     public static final String COLON = ", ";
