@@ -1,8 +1,9 @@
 package teamblue.ORManager;
 
 import org.assertj.core.api.Assertions;
-import org.junit.Assert;
+import org.junit.Before;
 import org.junit.Test;
+import teamblue.classes.BookTableTest;
 
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -10,11 +11,17 @@ import java.sql.SQLException;
 
 public class RegisterH2MethodTest {
 
+    @Before
+    public void setUpDatabase() throws SQLException {
+        ORManager orManager = ORManagerFactory.withPropertiesFrom("src/test/resources/db.file");
+        orManager.getConnectionWithDB().prepareStatement("DROP TABLE BOOKS").execute();
+    }
+
     @Test
     public void whenRegisterMethodInH2ORManagerInvokedWithBookClass_shouldAddTableWithGivenColumns() throws SQLException {
 
         ORManager orManager = ORManagerFactory.withPropertiesFrom("src/test/resources/db.file");
-        orManager.register(BookTest.class);
+        orManager.register(BookTableTest.class);
 
         PreparedStatement preparedStatement = orManager.getConnectionWithDB().prepareStatement("SELECT * FROM BOOKS");
 
