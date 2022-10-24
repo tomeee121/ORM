@@ -254,8 +254,7 @@ public class H2ORManager extends ORManager {
                             } else {
                                 return "";
                             }
-                        }
-                        else {
+                        } else {
                             field.setAccessible(true);
                             return String.valueOf(field.get(object));
                         }
@@ -437,7 +436,7 @@ public class H2ORManager extends ORManager {
         Class<?> cls = o.getClass();
 
         String valueOfField = getStringOfIdIfExist(o, cls).orElse("");
-        if(valueOfField.equals("")){
+        if (valueOfField.equals("")) {
             throw new NoSuchElementException();
         }
 
@@ -456,19 +455,18 @@ public class H2ORManager extends ORManager {
         List<FieldInfo> fieldInfos = of.getFieldInfos();
         List<String> fieldValuesForSaving = getFieldValuesForSaving(o, Arrays.stream(cls.getDeclaredFields()).toList())
                 .stream()
-                .map(s -> s.replace("'",""))
+                .map(s -> s.replace("'", ""))
                 .toList();
 
         int i = 0;
 
         for (FieldInfo fieldInfo : fieldInfos) {
 
-            if(!fieldInfo.columnName.equals(fieldIdName)) {
+            if (!fieldInfo.columnName.equals(fieldIdName)) {
                 String updateSql = UPDATE + tableName + SET + fieldInfo.columnName + EQUAL_QUESTION_MARK + WHERE + fieldIdName + EQUAL_QUESTION_MARK;
                 try {
                     PreparedStatement ps = getConnectionWithDB().prepareStatement(updateSql);
-                        ps.setObject(1,fieldValuesForSaving.get(i));
-                        ps.setObject(1, fieldValuesForSaving.get(i));
+                    ps.setObject(1, fieldValuesForSaving.get(i));
                     ps.setString(2, valueOfField);
                     ps.execute();
                 } catch (SQLException e) {
