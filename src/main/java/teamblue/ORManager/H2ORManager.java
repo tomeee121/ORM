@@ -203,13 +203,13 @@ public class H2ORManager extends ORManager {
         }
     }
 
-    private static void setFieldValueWithAnnotation(Object object, Class<?> clazz, Long finalGeneratedKey, Class<? extends Annotation> classAnnotation) {
+    private static void setFieldValueWithAnnotation(Object object, Class<?> clazz, Long valueToInsert, Class<? extends Annotation> classAnnotation) {
         Arrays.stream(clazz.getDeclaredFields())
                 .filter(field -> field.isAnnotationPresent(classAnnotation))
                 .forEach(field -> {
                     field.setAccessible(true);
                     try {
-                        field.set(object, finalGeneratedKey);
+                        field.set(object, valueToInsert);
                     } catch (IllegalAccessException e) {
                         log.debug("{}", e.getMessage());
                     }
@@ -542,6 +542,46 @@ public class H2ORManager extends ORManager {
 
     @Override
     boolean delete(Object o) {
+        Class<?> classOfObject = o.getClass();
+        Field[] declaredFields = classOfObject.getDeclaredFields();
+        String valueOfField = getStringOfIdIfExist(o, classOfObject).orElse("");
+        String fieldName = Arrays.stream(declaredFields)
+                .filter(field -> field.isAnnotationPresent(Id.class))
+                .map(field -> field.isAnnotationPresent(Column.class)
+                        ? field.getAnnotation(Column.class).value() : field.getName())
+                .findAny().orElseThrow();
+
+        if(!valueOfField.equals("")){
+            StringBuilder deleteSQL = new StringBuilder();
+            deleteSQL.append(DELETE_FROM)
+                     .append(getTableName(classOfObject))
+                     .append(" WHERE ")
+                     .append(fieldName)
+                     .append(" = ")
+                     .append(valueOfField);
+
+            try (PreparedStatement ps = getConnectionWithDB().prepareStatement(deleteSQL.toString())){
+                ps.execute();
+                log.debug("Object deleted from DB successfully.");
+                MetaInfo.setIsCacheUpToDate(false);
+            } catch (SQLException e) {
+                log.debug("Unable to delete object from DB. Message: {}",e.getSQLState());
+            }
+            Arrays.stream(declaredFields).filter(field -> field.isAnnotationPresent(Id.class))
+                    .forEach(field -> {
+                            try {
+                                field.setAccessible(true);
+                                if(field.getType().getSimpleName().equals("long")) {
+                                    field.set(o, 0L);
+                                } else if(field.getType().getSimpleName().equals("Long")){
+                                    field.set(o,null);
+                                }
+                            } catch (IllegalAccessException e) {
+                                log.debug("Unable to set object a null/0 value");
+                            }
+                    });
+            return true;
+        }
         return false;
     }
 }
