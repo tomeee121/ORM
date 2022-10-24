@@ -371,8 +371,10 @@ public class H2ORManager extends ORManager {
             MetaInfo.setIsCacheUpToDate(true);
 
         } catch (ReflectiveOperationException e) {
-            throw new RuntimeException("Exception of reflecive operation");
+            log.error("Exception of reflective operation in FindAll()");
+            throw new RuntimeException("Exception of reflective operation in FindAll()");
         } catch (SQLException e) {
+            log.error("SQL Exception");
             throw new RuntimeException("SQL Exception");
         }
 
