@@ -218,50 +218,56 @@ public class H2ORManager extends ORManager {
             log.debug("Class was not found!");
             return object;
         }
-        saveObject(object, clazz);
+        if (clazz.isAnnotationPresent(Entity.class)) {
+            String valueId = getStringOfIdIfExist(object, clazz).orElse("");
+            Object byId = null;
+            try {
+                byId = findById(Integer.parseInt(valueId), clazz).orElse(null);
+            } catch (Exception e) {
+                log.debug(e.getMessage());
+            }
+            if(byId == null){
+                saveObject(object, clazz);
+            } else {
+                merge(object);
+            }
+        } else {
+            log.info("Class missing @Entity annotation!");
+        }
         return object;
     }
 
     protected void saveObject(Object object, Class<?> clazz) {
-        if (!clazz.isAnnotationPresent(Entity.class)) {
-            log.info("Class missing @Entity annotation!");
-        } else {
-            List<Field> declaredFields = Arrays.stream(clazz.getDeclaredFields()).toList();
-
-            if (declaredFields.stream().findAny().isEmpty()) {
-                log.info("No fields present to save to database.");
-                return;
-            }
-
-            List<String> listOfFieldsName = getFieldsName(declaredFields);
-            List<String> listOfFieldValues = getFieldValuesForSaving(object, declaredFields);
-            String sqlFieldName = listOfFieldsName.stream()
-                    .collect(Collectors.joining(", "
-                            , LEFT_PARENTHESIS, RIGHT_PARENTHESIS));
-            String sqlFieldValues = String.join(", ", listOfFieldValues);
-
-            StringBuilder saveSql = new StringBuilder();
-            saveSql.append(INSERT_INTO)
-                    .append(getTableName(Objects.requireNonNull(clazz)))
-                    .append(sqlFieldName)
-                    .append(VALUES)
-                    .append(LEFT_PARENTHESIS)
-                    .append(sqlFieldValues)
-                    .append(RIGHT_PARENTHESIS);
-
-            Long generatedKey;
-            try {
-                generatedKey = runSQLAndGetId(saveSql);
-            } catch (SQLException e) {
-                log.debug("Unable to get correct generated ID.");
-                log.debug("{}", e.getMessage());
-                return;
-            }
-            setFieldValueWithAnnotation(object, clazz, generatedKey, Id.class);
-            log.info("Object of {} saved successfully with Id: {}", object.getClass()
-                    .getSimpleName(), generatedKey);
-
+        List<Field> declaredFields = Arrays.stream(clazz.getDeclaredFields()).toList();
+        if (declaredFields.stream().findAny().isEmpty()) {
+            log.info("No fields present to save to database.");
+            return;
         }
+        List<String> listOfFieldsName = getFieldsName(declaredFields);
+        List<String> listOfFieldValues = getFieldValuesForSaving(object, declaredFields);
+        String sqlFieldName = listOfFieldsName.stream()
+                .collect(Collectors.joining(", "
+                        , LEFT_PARENTHESIS, RIGHT_PARENTHESIS));
+        String sqlFieldValues = String.join(", ", listOfFieldValues);
+        StringBuilder saveSql = new StringBuilder();
+        saveSql.append(INSERT_INTO)
+                .append(getTableName(Objects.requireNonNull(clazz)))
+                .append(sqlFieldName)
+                .append(VALUES)
+                .append(LEFT_PARENTHESIS)
+                .append(sqlFieldValues)
+                .append(RIGHT_PARENTHESIS);
+        Long generatedKey;
+        try {
+            generatedKey = runSQLAndGetId(saveSql);
+        } catch (SQLException e) {
+            log.debug("Unable to get correct generated ID.");
+            log.debug("{}", e.getMessage());
+            return;
+        }
+        setFieldValueWithAnnotation(object, clazz, generatedKey, Id.class);
+        log.info("Object of {} saved successfully with Id: {}", object.getClass()
+                .getSimpleName(), generatedKey);
     }
 
     private static void setFieldValueWithAnnotation(Object object, Class<?> clazz, Long valueToInsert, Class<? extends Annotation> classAnnotation) {
@@ -542,28 +548,24 @@ public class H2ORManager extends ORManager {
     @Override
     boolean delete(Object o) {
         Class<?> classOfObject = o.getClass();
-        Field[] declaredFields = classOfObject.getDeclaredFields();
         String valueOfField = getStringOfIdIfExist(o, classOfObject).orElse("");
-        String fieldName = Arrays.stream(declaredFields)
-                .filter(field -> field.isAnnotationPresent(Id.class))
-                .map(field -> field.isAnnotationPresent(Column.class)
-                        ? field.getAnnotation(Column.class).value() : field.getName())
-                .findAny().orElseThrow();
 
-        if (!valueOfField.equals("")) {
-            StringBuilder deleteSQL = new StringBuilder();
-            deleteSQL.append(DELETE_FROM)
-                    .append(getTableName(classOfObject))
-                    .append(" WHERE ")
-                    .append(fieldName)
-                    .append(" = ")
-                    .append(valueOfField);
+        if(!valueOfField.equals("")){
+            Field[] declaredFields = classOfObject.getDeclaredFields();
+            String fieldName = Arrays.stream(declaredFields)
+                                     .filter(field -> field.isAnnotationPresent(Id.class))
+                                     .map(this::getFieldName)
+                                     .findAny().orElseThrow();
 
-            try (PreparedStatement ps = getConnectionWithDB().prepareStatement(deleteSQL.toString())) {
+            String deleteSQL = DELETE_FROM + getTableName(classOfObject) +
+                               WHERE + fieldName + EQUAL_QUESTION_MARK;
+
+            try (PreparedStatement ps = getConnectionWithDB().prepareStatement(deleteSQL)){
+                ps.setObject(1,valueOfField);
                 ps.execute();
                 log.debug("Object deleted from DB successfully.");
             } catch (SQLException e) {
-                log.debug("Unable to delete object from DB. Message: {}", e.getSQLState());
+                log.debug("Unable to delete object from DB. Message: {}",e.getSQLState());
             }
             Arrays.stream(declaredFields).filter(field -> field.isAnnotationPresent(Id.class))
                     .forEach(field -> {
@@ -580,6 +582,7 @@ public class H2ORManager extends ORManager {
                     });
             return true;
         }
+        log.info("Unable to delete the object.");
         return false;
     }
 }
