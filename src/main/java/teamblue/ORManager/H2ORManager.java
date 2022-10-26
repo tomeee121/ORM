@@ -126,6 +126,8 @@ public class H2ORManager extends ORManager {
             }
         }
 
+        StringBuilder baseSql =
+                new StringBuilder(CREATE_TABLE_IF_NOT_EXISTS + tableName + LEFT_PARENTHESIS);
 
         for (int i = 0; i < fields.size(); i++) {
 /**
@@ -226,15 +228,12 @@ public class H2ORManager extends ORManager {
             }
             if(byId == null){
                 saveObject(object, clazz);
-                setIsCacheUpToDate(false);
-
             } else {
                 merge(object);
             }
         } else {
             log.info("Class missing @Entity annotation!");
         }
-        setIsCacheUpToDate(false);
         return object;
     }
 
@@ -362,7 +361,6 @@ public class H2ORManager extends ORManager {
             String result = getStringOfIdIfExist(object, clazz).orElse("");
             if (result.equals("")) {
                 saveObject(object, clazz);
-                setIsCacheUpToDate(false);
             } else {
                 throw new RuntimeException("Class should not have ID!");
             }
@@ -566,7 +564,6 @@ public class H2ORManager extends ORManager {
                 ps.setObject(1,valueOfField);
                 ps.execute();
                 log.debug("Object deleted from DB successfully.");
-                MetaInfo.setIsCacheUpToDate(false);
             } catch (SQLException e) {
                 log.debug("Unable to delete object from DB. Message: {}",e.getSQLState());
             }
