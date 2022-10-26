@@ -20,13 +20,11 @@ public class App
         Book Potter = new Book("Potter", LocalDate.now());
         harry.setPublishedAt(LocalDate.of(2020,12,12));
         orManager.save(harry);
-        orManager.merge(harry);
         orManager.findById(1, Book.class);
-
-
-
-
-
+        harry.setTitle("");
+        harry.setPublishedAt(LocalDate.of(1111, 11, 11));
+        orManager.refresh(harry);
+        orManager.findById(1,Book.class);
     }
 
     public static void findAllCheck(ORManager orManager) throws SQLException, InvocationTargetException, InstantiationException, IllegalAccessException, NoSuchMethodException {

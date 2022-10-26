@@ -17,6 +17,7 @@ import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static javax.swing.text.html.HTML.Tag.SELECT;
 import static teamblue.ORManager.MetaInfo.*;
 import static teamblue.constants.h2.ConstantsH2.*;
 
@@ -482,7 +483,48 @@ public class H2ORManager extends ORManager {
 
     @Override
     <T> T refresh(T o) {
-        return null;
+        Class<?> cls = o.getClass();
+
+        String valueOfField = getStringOfIdIfExist(o, cls).orElse("");
+        if (valueOfField.equals("")) {
+            throw new NoSuchElementException();
+        }
+
+
+        String fieldIdName = Arrays.stream(cls.getDeclaredFields())
+                .filter(f -> f.isAnnotationPresent(Id.class))
+                .map(Field::getName)
+                .findFirst().get();
+
+
+        String tableName = getTableName(cls);
+
+        MetaInfo metaInfo = new MetaInfo();
+        MetaInfo of = metaInfo.of(cls);
+
+        List<FieldInfo> fieldInfos = of.getFieldInfos();
+
+        String retrieveSql = SELECT_ALL_FROM + tableName + WHERE + fieldIdName + EQUAL_QUESTION_MARK;
+
+        try {
+            PreparedStatement ps = getConnectionWithDB().prepareStatement(retrieveSql);
+            ps.setString(1 , valueOfField);
+            ResultSet resultSet = ps.executeQuery();
+            while(resultSet.next()){
+                for (FieldInfo fieldInfo : fieldInfos) {
+                    if (!fieldInfo.columnName.equals(fieldIdName)) {
+                        Object rSgetter = fieldInfo.getRSgetter(resultSet);
+                        Field field = fieldInfo.getField();
+                        field.set(o, rSgetter);
+                    }
+                }
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        } catch (IllegalAccessException e) {
+            throw new RuntimeException(e);
+        }
+        return o;
     }
 
     @Override
