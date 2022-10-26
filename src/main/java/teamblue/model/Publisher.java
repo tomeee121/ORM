@@ -1,7 +1,12 @@
 package teamblue.model;
 
+import teamblue.annotations.Entity;
+import teamblue.annotations.Id;
+
+@Entity
 public class Publisher {
 
+    @Id
     private Long id;
     private String name;
 
