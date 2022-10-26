@@ -13,8 +13,6 @@ import java.util.stream.Stream;
 
 class MetaInfo {
     List<FieldInfo> fields = new ArrayList<>();
-    static Map<Class, Set<Object>> cache = new HashMap<>();
-    static boolean isCacheUpToDate = false;
 
     MetaInfo() {
     }
@@ -30,46 +28,6 @@ class MetaInfo {
                 .forEach(field -> fields.add(
                         (new FieldInfo(field.isAnnotationPresent(Column.class) ? field.getAnnotation(Column.class).value() : field.getName(), field, cls))));
         return new MetaInfo(fields);
-    }
-
-    static Set<Object> newCache = new HashSet<>();
-    static void establishNewCache(List<Object> newlyFoundInDBObjects, Class cls) {
-        Set<Object> metaInfoFromCache = getCache().get(cls);
-        for (var latelyFound : newlyFoundInDBObjects) {
-            if (!metaInfoFromCache.contains(latelyFound)) {
-                newCache.add(latelyFound);
-            }
-        }
-
-        Set<Object> oldCache = getCache().get(cls);
-        Set<Object> wholeCache = Stream.of(oldCache, newCache)
-                .flatMap(list -> list.stream()).collect(Collectors.toSet());
-        addToCache(cls, wholeCache);
-    }
-
-    static void addToCache(Class cls, Set objects) {
-        objects.stream().forEach(upgradeCacheWithEl -> cache.get(cls).add(upgradeCacheWithEl));
-    }
-
-    static void clearCache() {
-        newCache.clear();
-        cache.values().clear();
-    }
-
-    public static Map<Class, Set<Object>> getCache() {
-        return cache;
-    }
-
-    public static void setCache(Map<Class, Set<Object>> cache) {
-        MetaInfo.cache = cache;
-    }
-
-    public static boolean isIsCacheUpToDate() {
-        return isCacheUpToDate;
-    }
-
-    public static void setIsCacheUpToDate(boolean isCacheUpToDate) {
-        MetaInfo.isCacheUpToDate = isCacheUpToDate;
     }
 
     List<FieldInfo> getFieldInfos() {
