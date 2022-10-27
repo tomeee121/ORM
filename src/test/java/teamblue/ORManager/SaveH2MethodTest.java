@@ -2,13 +2,11 @@ package teamblue.ORManager;
 
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import teamblue.ORManager.modelTest.IdInSecondPosition;
-import teamblue.ORManager.modelTest.MissingIdAnnotation;
-import teamblue.ORManager.modelTest.WithOneIdField;
-import teamblue.annotations.Entity;
+import teamblue.classes.*;
 import teamblue.annotations.Table;
 import teamblue.model.Book;
 
@@ -29,8 +27,8 @@ public class SaveH2MethodTest {
     public void setUp() throws Exception {
         orManager = ORManagerFactory.withPropertiesFrom("src/test/resources/db.file");
         orManager.getConnectionWithDB()
-                 .prepareStatement("DROP TABLE IF EXISTS BOOKS")
-                 .execute();
+                .prepareStatement("DROP ALL OBJECTS")
+                .execute();
     }
 
     @Test
@@ -78,8 +76,6 @@ public class SaveH2MethodTest {
 
     @Test
     public void shouldNotSaveObject_whenObjectHaveNoFields() {
-        @Entity
-        class WithoutFields {}
 
         WithoutFields test = new WithoutFields();
         String tableName =  getTableName(test.getClass());
@@ -137,6 +133,30 @@ public class SaveH2MethodTest {
         assertThat(sizeOfTableBeforeSave).isNotEqualTo(sizeOfTableAfterSave);
     }
 
+    @Test
+    public void shouldSaveObject_whenIdIsStringAndNull() throws SQLException {
+        StringId stringId = new StringId(null,"tests");
+        orManager.register(stringId.getClass());
+
+        orManager.save(stringId);
+
+        assertThat(stringId.getName()).isEqualTo("ormValue1");
+    }
+
+    @Test
+    @Ignore("Should be working with String ID")
+    public void shouldSaveObject_whenIdIsString() throws SQLException {
+        StringId stringId = new StringId(null,"tests");
+        orManager.register(stringId.getClass());
+
+        orManager.save(stringId);
+
+
+        StringId savedString = orManager.findById(stringId.getName(), stringId.getClass())
+                .get();
+        assertThat(stringId).isEqualTo(savedString);
+    }
+
     @After
     public void afterTest() {
         Connection conn = null;
@@ -147,6 +167,9 @@ public class SaveH2MethodTest {
         }
         if (conn != null) {
             try {
+                orManager.getConnectionWithDB()
+                        .prepareStatement("DROP ALL OBJECTS")
+                        .execute();
                 conn.close();
             } catch (SQLException e) {
                 throw new RuntimeException(e);
