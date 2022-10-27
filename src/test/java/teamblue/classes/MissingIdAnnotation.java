@@ -1,4 +1,4 @@
-package teamblue.ORManager.modelTest;
+package teamblue.classes;
 
 import teamblue.annotations.Entity;
 

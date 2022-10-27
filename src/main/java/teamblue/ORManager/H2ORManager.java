@@ -221,12 +221,14 @@ public class H2ORManager extends ORManager {
         if (clazz.isAnnotationPresent(Entity.class)) {
             String valueId = getStringOfIdIfExist(object, clazz).orElse("");
             Object byId = null;
+
             try {
-                byId = findById(Integer.parseInt(valueId), clazz).orElse(null);
+                byId = findById(valueId, clazz).orElse(null);
             } catch (Exception e) {
                 log.debug(e.getMessage());
             }
-            if(byId == null){
+
+            if (byId == null) {
                 saveObject(object, clazz);
             } else {
                 merge(object);
@@ -243,12 +245,33 @@ public class H2ORManager extends ORManager {
             log.info("No fields present to save to database.");
             return;
         }
-        List<String> listOfFieldsName = getFieldsName(declaredFields);
-        List<String> listOfFieldValues = getFieldValuesForSaving(object, declaredFields);
+        Field idField = null;
+        List<String> listOfFieldsName = declaredFields.stream().map(this::getFieldName).toList();
+        List<String> fieldValues = getFieldValueForSaving(object, declaredFields);
+        List<String> fieldValuesForSaving = new ArrayList<>();
+
+        int i = 0;
+        String genereatedKeyString = "ormValue" + (findAll(clazz).size() + 1);
+        for (Field field: declaredFields) {
+            String typeName = field.getType().getSimpleName();
+            if (field.isAnnotationPresent(Id.class)){
+                if (typeName.equals("UUID") || typeName.equalsIgnoreCase("Long")) {
+                    fieldValuesForSaving.add("default");
+                } else {
+                    fieldValuesForSaving.add("'"+ genereatedKeyString + "'");
+                }
+                idField = field;
+            } else {
+                String value = fieldValues.get(i);
+                fieldValuesForSaving.add(value.equals("null") ? value : "'" + value + "'");
+            }
+            i++;
+        }
+
         String sqlFieldName = listOfFieldsName.stream()
                 .collect(Collectors.joining(", "
                         , LEFT_PARENTHESIS, RIGHT_PARENTHESIS));
-        String sqlFieldValues = String.join(", ", listOfFieldValues);
+        String sqlFieldValues = String.join(", ", fieldValuesForSaving);
         StringBuilder saveSql = new StringBuilder();
         saveSql.append(INSERT_INTO)
                 .append(getTableName(Objects.requireNonNull(clazz)))
@@ -257,20 +280,29 @@ public class H2ORManager extends ORManager {
                 .append(LEFT_PARENTHESIS)
                 .append(sqlFieldValues)
                 .append(RIGHT_PARENTHESIS);
-        Long generatedKey;
+
+        Object generatedKey = null;
         try {
-            generatedKey = runSQLAndGetId(saveSql);
+            generatedKey = runSQLAndGetId(saveSql, idField);
         } catch (SQLException e) {
             log.debug("Unable to get correct generated ID.");
             log.debug("{}", e.getMessage());
             return;
         }
-        setFieldValueWithAnnotation(object, clazz, generatedKey, Id.class);
-        log.info("Object of {} saved successfully with Id: {}", object.getClass()
-                .getSimpleName(), generatedKey);
+        if(!(generatedKey instanceof String) && idField != null) {
+            if (!idField.getType().getSimpleName().equalsIgnoreCase("String")) {
+                setFieldValueWithAnnotation(object, clazz, generatedKey, Id.class);
+                log.info("Object of {} saved successfully with Id: {}", object.getClass()
+                        .getSimpleName(), generatedKey);
+            } else {
+                setFieldValueWithAnnotation(object, clazz, genereatedKeyString, Id.class);
+                log.info("Object of {} saved successfully without Id", object.getClass()
+                        .getSimpleName());
+            }
+        }
     }
 
-    private static void setFieldValueWithAnnotation(Object object, Class<?> clazz, Long valueToInsert, Class<? extends Annotation> classAnnotation) {
+    private static void setFieldValueWithAnnotation(Object object, Class<?> clazz, Object valueToInsert, Class<? extends Annotation> classAnnotation) {
         Arrays.stream(clazz.getDeclaredFields())
                 .filter(field -> field.isAnnotationPresent(classAnnotation))
                 .forEach(field -> {
@@ -283,14 +315,22 @@ public class H2ORManager extends ORManager {
                 });
     }
 
-    private Long runSQLAndGetId(StringBuilder saveSql) throws SQLException {
-        Long generatedKey = null;
+    private Object runSQLAndGetId(StringBuilder saveSql, Field fieldId) throws SQLException {
+        Object generatedKey = null;
         try (PreparedStatement ps = getConnectionWithDB().prepareStatement(saveSql.toString(),
                 Statement.RETURN_GENERATED_KEYS)) {
             ps.executeUpdate();
             ResultSet rs = ps.getGeneratedKeys();
             while (rs.next()) {
-                generatedKey = rs.getLong(1);
+                if(fieldId == null){
+                    break;
+                }
+                String idObjectType = fieldId.getType().getSimpleName();
+                if (idObjectType.equalsIgnoreCase("Long")) {
+                    generatedKey = rs.getLong(1);
+                } else if(idObjectType.equalsIgnoreCase("UUID")){
+                    generatedKey = rs.getString(1);
+                }
             }
         } catch (SQLException e) {
             log.debug("Unable to save object to database, some fields might be null. %n {}", e.getSQLState());
@@ -299,42 +339,18 @@ public class H2ORManager extends ORManager {
         return generatedKey;
     }
 
-    private List<String> getFieldsName(List<Field> declaredFields) {
-        return declaredFields.stream()
-                .map(field -> {
-                    if (field.isAnnotationPresent(Column.class)) {
-                        return field.getAnnotation(Column.class)
-                                .value();
-                    } else {
-                        return field.getName();
-                    }
-                })
-                .toList();
-    }
 
-    private List<String> getFieldValuesForSaving(Object object, List<Field> declaredFields) {
+    private List<String> getFieldValueForSaving(Object object, List<Field> declaredFields) {
         return declaredFields.stream()
                 .map(field -> {
+                    field.setAccessible(true);
                     try {
-                        if (field.isAnnotationPresent(Id.class)) {
-                            if (field.getType().getSimpleName().equals("Long")) {
-                                return "default";
-                            } else if (field.getType().getSimpleName().equals("String")) {
-                                return String.valueOf(field.get(object));
-                            } else {
-                                return "";
-                            }
-                        } else {
-                            field.setAccessible(true);
-                            return String.valueOf(field.get(object));
-                        }
+                        return String.valueOf(field.get(object));
                     } catch (IllegalAccessException e) {
                         log.debug("Unable to access field: {}", field.getName());
-                        return "";
+                        throw new RuntimeException(e);
                     }
                 })
-                .map(field -> field.equals("default")
-                        || field.equals("null") ? field : "'" + field + "'")
                 .toList();
     }
 
@@ -512,10 +528,7 @@ public class H2ORManager extends ORManager {
         MetaInfo of = metaInfo.of(cls);
 
         List<FieldInfo> fieldInfos = of.getFieldInfos();
-        List<String> fieldValuesForSaving = getFieldValuesForSaving(o, Arrays.stream(cls.getDeclaredFields()).toList())
-                .stream()
-                .map(s -> s.replace("'", ""))
-                .toList();
+        List<String> fieldValuesForSaving = getFieldValueForSaving(o, Arrays.stream(cls.getDeclaredFields()).toList());
 
         int i = 0;
 
