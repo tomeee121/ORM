@@ -490,12 +490,10 @@ public class H2ORManager extends ORManager {
             throw new NoSuchElementException();
         }
 
-
         String fieldIdName = Arrays.stream(cls.getDeclaredFields())
                 .filter(f -> f.isAnnotationPresent(Id.class))
                 .map(Field::getName)
                 .findFirst().get();
-
 
         String tableName = getTableName(cls);
 
