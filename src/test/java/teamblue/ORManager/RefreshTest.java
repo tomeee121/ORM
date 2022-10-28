@@ -32,15 +32,47 @@ public class RefreshTest {
     }
 
     @Test
-    public void Refresh_ShouldUpdateTitle(){
+    public void Refresh_ShouldUpdateTitle() {
         Book book1 = new Book("Harry Potter", LocalDate.of(2011, 11, 28));
-        Book book2 = new Book("Harry Potter 3", LocalDate.of(1111, 11, 11));
         orManager.save(book1);
-        orManager.save(book2);
         book1.setTitle("New Harry Potter");
-        System.out.println(book1);
         Book refresh = orManager.refresh(book1);
         Assertions.assertEquals("Harry Potter", refresh.getTitle());
     }
 
+    @Test
+    public void Refresh_ShouldUpdatePublishDate() {
+        Book book1 = new Book("Harry Potter", LocalDate.of(2011, 11, 28));
+        orManager.save(book1);
+        book1.setPublishedAt(LocalDate.of(1000, 10, 1));
+        Book refresh = orManager.refresh(book1);
+        Assertions.assertEquals(LocalDate.of(2011, 11, 28), refresh.getPublishedAt());
+    }
+
+    @Test
+    public void Refresh_ShouldThrowException_EntityNotSaved() {
+        Book book1 = new Book("Harry Potter", LocalDate.of(2011, 11, 28));
+
+        Assertions.assertThrows(NoSuchElementException.class, () -> orManager.refresh(book1));
+    }
+
+    @After
+    public void tearUp() throws SQLException {
+        PreparedStatement dropStmt = orManager.getConnectionWithDB().prepareStatement(DROP_IF_EXISTS_BOOKS);
+        dropStmt.executeUpdate();
+
+        Connection conn = null;
+        try {
+            conn = orManager.getConnectionWithDB();
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+        if (conn != null) {
+            try {
+                conn.close();
+            } catch (SQLException e) {
+                throw new RuntimeException(e);
+            }
+        }
+    }
 }
