@@ -2,6 +2,7 @@ package teamblue.ORManager;
 
 import lombok.extern.slf4j.Slf4j;
 import teamblue.annotations.*;
+import teamblue.util.StringIdGenerator;
 
 import javax.sql.DataSource;
 import java.io.Serializable;
@@ -240,38 +241,34 @@ public class H2ORManager extends ORManager {
     }
 
     protected void saveObject(Object object, Class<?> clazz) {
-        List<Field> declaredFields = Arrays.stream(clazz.getDeclaredFields()).toList();
+        List<Field> declaredFields = Arrays.stream(clazz.getDeclaredFields())
+                .filter(field -> !field.isAnnotationPresent(OneToMany.class)).toList();
+
         if (declaredFields.stream().findAny().isEmpty()) {
             log.info("No fields present to save to database.");
             return;
         }
-        Field idField = null;
-        List<String> listOfFieldsName = declaredFields.stream().map(this::getFieldName).toList();
-        List<String> fieldValues = getFieldValueForSaving(object, declaredFields);
-        List<String> fieldValuesForSaving = new ArrayList<>();
 
-        int i = 0;
-        String genereatedKeyString = "ormValue" + (findAll(clazz).size() + 1);
-        for (Field field: declaredFields) {
-            String typeName = field.getType().getSimpleName();
-            if (field.isAnnotationPresent(Id.class)){
-                if (typeName.equals("UUID") || typeName.equalsIgnoreCase("Long")) {
-                    fieldValuesForSaving.add("default");
-                } else {
-                    fieldValuesForSaving.add("'"+ genereatedKeyString + "'");
-                }
-                idField = field;
-            } else {
-                String value = fieldValues.get(i);
-                fieldValuesForSaving.add(value.equals("null") ? value : "'" + value + "'");
-            }
-            i++;
+        String generatedKeyString = null;
+        try {
+            generatedKeyString = StringIdGenerator.generate(clazz,getConnectionWithDB());
+        } catch (SQLException e) {
+            throw new RuntimeException(e.getSQLState());
         }
 
-        String sqlFieldName = listOfFieldsName.stream()
+        Map<String, List<?>> listOfNamesValuesFieldsId = generateMapOfNamesAndValues(
+                object, declaredFields, clazz, generatedKeyString);
+
+
+        String sqlFieldName = listOfNamesValuesFieldsId.get("names").stream()
+                .map(String::valueOf)
                 .collect(Collectors.joining(", "
                         , LEFT_PARENTHESIS, RIGHT_PARENTHESIS));
-        String sqlFieldValues = String.join(", ", fieldValuesForSaving);
+
+        String sqlFieldValues = listOfNamesValuesFieldsId.get("values").stream()
+                .map(String::valueOf)
+                .collect(Collectors.joining(", "));
+
         StringBuilder saveSql = new StringBuilder();
         saveSql.append(INSERT_INTO)
                 .append(getTableName(Objects.requireNonNull(clazz)))
@@ -281,6 +278,10 @@ public class H2ORManager extends ORManager {
                 .append(sqlFieldValues)
                 .append(RIGHT_PARENTHESIS);
 
+
+        List<?> idFields = listOfNamesValuesFieldsId.get("fieldId");
+        Field idField = idFields.isEmpty() ? null : (Field) idFields.get(0);
+
         Object generatedKey = null;
         try {
             generatedKey = runSQLAndGetId(saveSql, idField);
@@ -289,17 +290,56 @@ public class H2ORManager extends ORManager {
             log.debug("{}", e.getMessage());
             return;
         }
+
         if(!(generatedKey instanceof String) && idField != null) {
             if (!idField.getType().getSimpleName().equalsIgnoreCase("String")) {
                 setFieldValueWithAnnotation(object, clazz, generatedKey, Id.class);
                 log.info("Object of {} saved successfully with Id: {}", object.getClass()
                         .getSimpleName(), generatedKey);
             } else {
-                setFieldValueWithAnnotation(object, clazz, genereatedKeyString, Id.class);
+                setFieldValueWithAnnotation(object, clazz, generatedKeyString, Id.class);
                 log.info("Object of {} saved successfully without Id", object.getClass()
                         .getSimpleName());
             }
         }
+    }
+
+    /*
+    * Method only work for saving objects to DB
+    * Return list of names, values and fields annotated with @Id
+    */
+    private Map<String, List<?>> generateMapOfNamesAndValues(Object object, List<Field> declaredFields, Class<?> clazz, String generatedKeyString) {
+        Map<String, List<?>> map = new HashMap<>();
+        List<String> listOfFieldsName = declaredFields.stream().map(this::getFieldName).toList();
+
+        map.put("names",listOfFieldsName);
+
+        List<String> fieldValues = getFieldValueForSaving(object, declaredFields)
+                .stream().map(String::valueOf).toList();
+        List<String> fieldValuesForSaving = new ArrayList<>();
+
+        List<Field> fieldsId = new ArrayList<>();
+
+        int i = 0;
+        for (Field field: declaredFields) {
+            String typeName = field.getType().getSimpleName();
+            if (field.isAnnotationPresent(Id.class)){
+                if (typeName.equals("UUID") || typeName.equalsIgnoreCase("Long")) {
+                    fieldValuesForSaving.add("default");
+                } else {
+                    fieldValuesForSaving.add("'"+ generatedKeyString + "'");
+                }
+                fieldsId.add(field);
+            } else {
+                String value = fieldValues.get(i);
+                fieldValuesForSaving.add(value.equals("null") ? value : "'" + value + "'");
+            }
+            i++;
+        }
+        map.put("values", fieldValuesForSaving);
+        map.put("fieldId",fieldsId);
+
+        return map;
     }
 
     private static void setFieldValueWithAnnotation(Object object, Class<?> clazz, Object valueToInsert, Class<? extends Annotation> classAnnotation) {
@@ -340,12 +380,20 @@ public class H2ORManager extends ORManager {
     }
 
 
-    private List<String> getFieldValueForSaving(Object object, List<Field> declaredFields) {
+    private List<Object> getFieldValueForSaving(Object object, List<Field> declaredFields) {
         return declaredFields.stream()
+                .filter(field -> !field.isAnnotationPresent(OneToMany.class))
                 .map(field -> {
                     field.setAccessible(true);
                     try {
-                        return String.valueOf(field.get(object));
+                        if (field.isAnnotationPresent(ManyToOne.class)){
+                            Field field1 = Arrays.stream(field.get(object).getClass().getDeclaredFields())
+                                    .filter(fieldO -> fieldO.isAnnotationPresent(Id.class))
+                                    .findAny().orElseThrow();
+                            field1.setAccessible(true);
+                            return field1.get(field.get(object));
+                        }
+                        return field.get(object);
                     } catch (IllegalAccessException e) {
                         log.debug("Unable to access field: {}", field.getName());
                         throw new RuntimeException(e);
@@ -403,7 +451,13 @@ public class H2ORManager extends ORManager {
 
 
     private String getFieldName(Field field) {
-        return field.isAnnotationPresent(Column.class) ? field.getAnnotation(Column.class).value() : field.getName();
+        if(field.isAnnotationPresent(Column.class)){
+            return field.getAnnotation(Column.class).value();
+        } else if (field.isAnnotationPresent(ManyToOne.class)){
+            return field.getName().toLowerCase() + "_id";
+        } else {
+            return field.getName();
+        }
     }
 
     @Override
@@ -528,7 +582,10 @@ public class H2ORManager extends ORManager {
         MetaInfo of = metaInfo.of(cls);
 
         List<FieldInfo> fieldInfos = of.getFieldInfos();
-        List<String> fieldValuesForSaving = getFieldValueForSaving(o, Arrays.stream(cls.getDeclaredFields()).toList());
+        List<String> fieldValuesForSaving = getFieldValueForSaving(o, Arrays.stream(cls.getDeclaredFields()).toList())
+                .stream()
+                .map(String::valueOf)
+                .toList();
 
         int i = 0;
 
