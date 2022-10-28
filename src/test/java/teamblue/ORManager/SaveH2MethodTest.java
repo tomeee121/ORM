@@ -6,8 +6,8 @@ import org.junit.Ignore;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import teamblue.classes.*;
 import teamblue.annotations.Table;
+import teamblue.classes.*;
 import teamblue.model.Book;
 
 import java.sql.Connection;
@@ -140,11 +140,11 @@ public class SaveH2MethodTest {
 
         orManager.save(stringId);
 
-        assertThat(stringId.getName()).isEqualTo("ormValue1");
+        assertThat(stringId.getName()).isEqualTo(stringId.getClass().getSimpleName().toLowerCase() + "01");
     }
 
     @Test
-    @Ignore("Should be working with String ID")
+    @Ignore("Should be working with String ID, findById not support String")
     public void shouldSaveObject_whenIdIsString() throws SQLException {
         StringId stringId = new StringId(null,"tests");
         orManager.register(stringId.getClass());
@@ -155,6 +155,24 @@ public class SaveH2MethodTest {
         StringId savedString = orManager.findById(stringId.getName(), stringId.getClass())
                 .get();
         assertThat(stringId).isEqualTo(savedString);
+    }
+
+    @Test
+    public void shouldSaveObject_whenOneToManyRelationPresent() throws SQLException {
+        teamblue.model.OneToManyModels.Book book1 = new teamblue.model.OneToManyModels.Book("Harry Potter", LocalDate.of(2011, 11, 28));
+        teamblue.model.OneToManyModels.Book book2 = new teamblue.model.OneToManyModels.Book("Invincible",LocalDate.of(2010,05,24));
+        teamblue.model.OneToManyModels.Publisher publisher = new teamblue.model.OneToManyModels.Publisher("Publisher");
+        book1.setPublisher(publisher);
+        book2.setPublisher(publisher);
+
+        orManager.register(book1.getClass(), publisher.getClass());
+
+        orManager.save(publisher);
+        orManager.save(book1);
+        orManager.save(book2);
+
+        assertThat(book1.getPublisher()).isEqualTo(publisher);
+        assertThat(book2.getPublisher()).isEqualTo(publisher);
     }
 
     @After
