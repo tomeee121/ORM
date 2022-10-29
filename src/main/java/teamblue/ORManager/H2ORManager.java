@@ -691,6 +691,7 @@ public class H2ORManager extends ORManager {
                     });
             return true;
         }
+        log.info("Unable to delete the object.");
         return false;
     }
 }
