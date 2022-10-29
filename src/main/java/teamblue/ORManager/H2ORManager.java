@@ -1,10 +1,8 @@
 package teamblue.ORManager;
 
 import lombok.extern.slf4j.Slf4j;
-import teamblue.annotations.Column;
-import teamblue.annotations.Entity;
-import teamblue.annotations.Id;
-import teamblue.annotations.Table;
+import teamblue.annotations.*;
+import teamblue.util.StringIdGenerator;
 
 import javax.sql.DataSource;
 import java.io.Serializable;
@@ -17,8 +15,7 @@ import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static javax.swing.text.html.HTML.Tag.SELECT;
-import static teamblue.ORManager.MetaInfo.*;
+import static teamblue.ORManager.MetaInfo.FieldInfo;
 import static teamblue.constants.h2.ConstantsH2.*;
 
 @Slf4j
@@ -44,6 +41,66 @@ public class H2ORManager extends ORManager {
                 throw new RuntimeException("Annotate POJO with @Entity to add it to DB as a table!");
             }
         }
+
+/**
+ ManyToOne feature
+ */
+        if (entityClasses.length > 1) {
+            Field[] manyToOneAnnotatedFields =
+                    Arrays.stream(entityClasses)
+                            .filter(classToCheck -> classToCheck.isAnnotationPresent(Entity.class))
+                            .map(cls -> cls.getDeclaredFields())
+                            .flatMap(array -> Stream.of(array).filter(field -> field.isAnnotationPresent(ManyToOne.class)))
+                            .toArray(Field[]::new);
+
+            Class<? extends Class> manyToOneSideTable =
+                    Arrays.stream(entityClasses).filter(classToCheck -> classToCheck.isAnnotationPresent(Entity.class))
+                            .filter(cls -> Arrays.stream(cls.getDeclaredFields()).anyMatch(field -> field.isAnnotationPresent(ManyToOne.class)))
+                            .findFirst().orElseThrow(() -> new RuntimeException("Incorrect mapping"));
+
+            for (Field fieldM1 : manyToOneAnnotatedFields) {
+                fieldM1.setAccessible(true);
+                for (Class entityClassForOneToMany : entityClasses) {
+                    String id1MFieldName = null;
+                    Class oneToManyIdType = null;
+                    for (Field field1M : entityClassForOneToMany.getDeclaredFields()) {
+                        if (field1M.isAnnotationPresent(Id.class)) {
+                            if (field1M.isAnnotationPresent(Column.class)) {
+                                id1MFieldName = field1M.getAnnotation(Column.class).value();
+                            } else {
+                                id1MFieldName = field1M.getName();
+                            }
+                            oneToManyIdType = field1M.getType();
+                        }
+                        if (field1M.isAnnotationPresent(OneToMany.class)) {
+                            field1M.setAccessible(true);
+                            String manyToOneTableName =
+                                    manyToOneSideTable.isAnnotationPresent(Table.class) ?
+                                            manyToOneSideTable.getAnnotation(Table.class).value() : manyToOneSideTable.getSimpleName();
+                            String oneToManyTableName =
+                                    entityClassForOneToMany.isAnnotationPresent(Column.class) ?
+                                            manyToOneSideTable.getAnnotation(Column.class).value() : entityClassForOneToMany.getSimpleName();
+                            try {
+                                PreparedStatement addForeignKeyColumn =
+                                        getConnectionWithDB().prepareStatement(ALTER_TABLE + manyToOneTableName + ADD
+                                                + oneToManyTableName.toLowerCase() + _ID + oneToManyIdType.getSimpleName());
+                                addForeignKeyColumn.executeUpdate();
+
+                                PreparedStatement foreignKeyConstraintSql =
+                                        getConnectionWithDB().prepareStatement(ALTER_TABLE + manyToOneTableName + ADD_FOREIGN_KEY +
+                                                LEFT_PARENTHESIS + oneToManyTableName.toLowerCase() + _ID + RIGHT_PARENTHESIS + REFERENCES + oneToManyTableName
+                                                + LEFT_PARENTHESIS + id1MFieldName + RIGHT_PARENTHESIS);
+                                foreignKeyConstraintSql.executeUpdate();
+
+                            } catch (SQLException e) {
+                                log.error("SQL connection exception during creating foreign key constraint!");
+                                throw new RuntimeException(e);
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 
     void registerClass(Class<?> entityClass) {
@@ -57,29 +114,39 @@ public class H2ORManager extends ORManager {
         }
 
 
-        List<Field> primaryKeyFields = new ArrayList<>();
+        List<Field> fields = new ArrayList<>();
 
 
         Field[] declaredFields = entityClass.getDeclaredFields();
         for (Field declaredField : declaredFields) {
-            if (declaredField.isAnnotationPresent(Id.class)) ;
-            primaryKeyFields.add(declaredField);
+/**
+ ManyToOnefeature
+ */
+            if (!declaredField.isAnnotationPresent(OneToMany.class) && !declaredField.isAnnotationPresent(ManyToOne.class)) {
+                fields.add(declaredField);
+            }
         }
 
+        StringBuilder baseSql =
+                new StringBuilder(CREATE_TABLE_IF_NOT_EXISTS + tableName + LEFT_PARENTHESIS);
 
-        StringBuilder baseSql = new StringBuilder(CREATE_TABLE_IF_NOT_EXISTS + tableName + LEFT_PARENTHESIS);
+        for (int i = 0; i < fields.size(); i++) {
+/**
+ ManyToOne feature
+ */
+            if (!fields.get(i).isAnnotationPresent(OneToMany.class) && !fields.get(i).isAnnotationPresent(ManyToOne.class)) {
+                getCastedTypeToH2(fields, i, baseSql);
+            }
 
-        for (int i = 0; i < primaryKeyFields.size(); i++) {
-            getCastedTypeToH2(primaryKeyFields, i, baseSql);
-
-            if (i != primaryKeyFields.size() - 1) {
+            if (i != fields.size() - 1) {
                 baseSql.append(COLON);
             }
         }
         baseSql.append(RIGHT_PARENTHESIS);
 
         try {
-            PreparedStatement addTableStatement = getConnectionWithDB().prepareStatement(String.valueOf(baseSql));
+            PreparedStatement addTableStatement =
+                    getConnectionWithDB().prepareStatement(String.valueOf(baseSql));
             addTableStatement.executeUpdate();
 
             List<Field> columnFields = Arrays.stream(declaredFields)
@@ -91,8 +158,6 @@ public class H2ORManager extends ORManager {
             log.error("Error of {} occured during creating table", e.getMessage());
         }
 
-        cache.put(entityClass, new HashSet<>());
-        setIsCacheUpToDate(false);
         log.info("Created table of name {}", entityClass.getSimpleName());
     }
 
@@ -154,54 +219,130 @@ public class H2ORManager extends ORManager {
             log.debug("Class was not found!");
             return object;
         }
-        saveObject(object, clazz);
-        setIsCacheUpToDate(false);
+        if (clazz.isAnnotationPresent(Entity.class)) {
+            String valueId = getStringOfIdIfExist(object, clazz).orElse("");
+            Object byId = null;
+
+            try {
+                byId = findById(valueId, clazz).orElse(null);
+            } catch (Exception e) {
+                log.debug(e.getMessage());
+            }
+
+            if (byId == null) {
+                saveObject(object, clazz);
+            } else {
+                merge(object);
+            }
+        } else {
+            log.info("Class missing @Entity annotation!");
+        }
         return object;
     }
 
     protected void saveObject(Object object, Class<?> clazz) {
-        if (!clazz.isAnnotationPresent(Entity.class)) {
-            log.info("Class missing @Entity annotation!");
-        } else {
-            List<Field> declaredFields = Arrays.stream(clazz.getDeclaredFields()).toList();
+        List<Field> declaredFields = Arrays.stream(clazz.getDeclaredFields())
+                .filter(field -> !field.isAnnotationPresent(OneToMany.class)).toList();
 
-            if (declaredFields.stream().findAny().isEmpty()) {
-                log.info("No fields present to save to database.");
-                return;
+        if (declaredFields.stream().findAny().isEmpty()) {
+            log.info("No fields present to save to database.");
+            return;
+        }
+
+        String generatedKeyString = null;
+        try {
+            generatedKeyString = StringIdGenerator.generate(clazz,getConnectionWithDB());
+        } catch (SQLException e) {
+            throw new RuntimeException(e.getSQLState());
+        }
+
+        Map<String, List<?>> listOfNamesValuesFieldsId = generateMapOfNamesAndValues(
+                object, declaredFields, clazz, generatedKeyString);
+
+
+        String sqlFieldName = listOfNamesValuesFieldsId.get("names").stream()
+                .map(String::valueOf)
+                .collect(Collectors.joining(", "
+                        , LEFT_PARENTHESIS, RIGHT_PARENTHESIS));
+
+        String sqlFieldValues = listOfNamesValuesFieldsId.get("values").stream()
+                .map(String::valueOf)
+                .collect(Collectors.joining(", "));
+
+        StringBuilder saveSql = new StringBuilder();
+        saveSql.append(INSERT_INTO)
+                .append(getTableName(Objects.requireNonNull(clazz)))
+                .append(sqlFieldName)
+                .append(VALUES)
+                .append(LEFT_PARENTHESIS)
+                .append(sqlFieldValues)
+                .append(RIGHT_PARENTHESIS);
+
+
+        List<?> idFields = listOfNamesValuesFieldsId.get("fieldId");
+        Field idField = idFields.isEmpty() ? null : (Field) idFields.get(0);
+
+        Object generatedKey = null;
+        try {
+            generatedKey = runSQLAndGetId(saveSql, idField);
+        } catch (SQLException e) {
+            log.debug("Unable to get correct generated ID.");
+            log.debug("{}", e.getMessage());
+            return;
+        }
+
+        if(!(generatedKey instanceof String) && idField != null) {
+            if (!idField.getType().getSimpleName().equalsIgnoreCase("String")) {
+                setFieldValueWithAnnotation(object, clazz, generatedKey, Id.class);
+                log.info("Object of {} saved successfully with Id: {}", object.getClass()
+                        .getSimpleName(), generatedKey);
+            } else {
+                setFieldValueWithAnnotation(object, clazz, generatedKeyString, Id.class);
+                log.info("Object of {} saved successfully without Id", object.getClass()
+                        .getSimpleName());
             }
-
-            List<String> listOfFieldsName = getFieldsName(declaredFields);
-            List<String> listOfFieldValues = getFieldValuesForSaving(object, declaredFields);
-            String sqlFieldName = listOfFieldsName.stream()
-                    .collect(Collectors.joining(", "
-                            , LEFT_PARENTHESIS, RIGHT_PARENTHESIS));
-            String sqlFieldValues = String.join(", ", listOfFieldValues);
-
-            StringBuilder saveSql = new StringBuilder();
-            saveSql.append(INSERT_INTO)
-                    .append(getTableName(Objects.requireNonNull(clazz)))
-                    .append(sqlFieldName)
-                    .append(VALUES)
-                    .append(LEFT_PARENTHESIS)
-                    .append(sqlFieldValues)
-                    .append(RIGHT_PARENTHESIS);
-
-            Long generatedKey;
-            try {
-                generatedKey = runSQLAndGetId(saveSql);
-            } catch (SQLException e) {
-                log.debug("Unable to get correct generated ID.");
-                log.debug("{}", e.getMessage());
-                return;
-            }
-            setFieldValueWithAnnotation(object, clazz, generatedKey, Id.class);
-            log.info("Object of {} saved successfully with Id: {}", object.getClass()
-                    .getSimpleName(), generatedKey);
-
         }
     }
 
-    private static void setFieldValueWithAnnotation(Object object, Class<?> clazz, Long valueToInsert, Class<? extends Annotation> classAnnotation) {
+    /*
+    * Method only work for saving objects to DB
+    * Return list of names, values and fields annotated with @Id
+    */
+    private Map<String, List<?>> generateMapOfNamesAndValues(Object object, List<Field> declaredFields, Class<?> clazz, String generatedKeyString) {
+        Map<String, List<?>> map = new HashMap<>();
+        List<String> listOfFieldsName = declaredFields.stream().map(this::getFieldName).toList();
+
+        map.put("names",listOfFieldsName);
+
+        List<String> fieldValues = getFieldValueForSaving(object, declaredFields)
+                .stream().map(String::valueOf).toList();
+        List<String> fieldValuesForSaving = new ArrayList<>();
+
+        List<Field> fieldsId = new ArrayList<>();
+
+        int i = 0;
+        for (Field field: declaredFields) {
+            String typeName = field.getType().getSimpleName();
+            if (field.isAnnotationPresent(Id.class)){
+                if (typeName.equals("UUID") || typeName.equalsIgnoreCase("Long")) {
+                    fieldValuesForSaving.add("default");
+                } else {
+                    fieldValuesForSaving.add("'"+ generatedKeyString + "'");
+                }
+                fieldsId.add(field);
+            } else {
+                String value = fieldValues.get(i);
+                fieldValuesForSaving.add(value.equals("null") ? value : "'" + value + "'");
+            }
+            i++;
+        }
+        map.put("values", fieldValuesForSaving);
+        map.put("fieldId",fieldsId);
+
+        return map;
+    }
+
+    private static void setFieldValueWithAnnotation(Object object, Class<?> clazz, Object valueToInsert, Class<? extends Annotation> classAnnotation) {
         Arrays.stream(clazz.getDeclaredFields())
                 .filter(field -> field.isAnnotationPresent(classAnnotation))
                 .forEach(field -> {
@@ -214,14 +355,22 @@ public class H2ORManager extends ORManager {
                 });
     }
 
-    private Long runSQLAndGetId(StringBuilder saveSql) throws SQLException {
-        Long generatedKey = null;
+    private Object runSQLAndGetId(StringBuilder saveSql, Field fieldId) throws SQLException {
+        Object generatedKey = null;
         try (PreparedStatement ps = getConnectionWithDB().prepareStatement(saveSql.toString(),
                 Statement.RETURN_GENERATED_KEYS)) {
             ps.executeUpdate();
             ResultSet rs = ps.getGeneratedKeys();
             while (rs.next()) {
-                generatedKey = rs.getLong(1);
+                if(fieldId == null){
+                    break;
+                }
+                String idObjectType = fieldId.getType().getSimpleName();
+                if (idObjectType.equalsIgnoreCase("Long")) {
+                    generatedKey = rs.getLong(1);
+                } else if(idObjectType.equalsIgnoreCase("UUID")){
+                    generatedKey = rs.getString(1);
+                }
             }
         } catch (SQLException e) {
             log.debug("Unable to save object to database, some fields might be null. %n {}", e.getSQLState());
@@ -230,42 +379,26 @@ public class H2ORManager extends ORManager {
         return generatedKey;
     }
 
-    private List<String> getFieldsName(List<Field> declaredFields) {
-        return declaredFields.stream()
-                .map(field -> {
-                    if (field.isAnnotationPresent(Column.class)) {
-                        return field.getAnnotation(Column.class)
-                                .value();
-                    } else {
-                        return field.getName();
-                    }
-                })
-                .toList();
-    }
 
-    private List<String> getFieldValuesForSaving(Object object, List<Field> declaredFields) {
+    private List<Object> getFieldValueForSaving(Object object, List<Field> declaredFields) {
         return declaredFields.stream()
+                .filter(field -> !field.isAnnotationPresent(OneToMany.class))
                 .map(field -> {
+                    field.setAccessible(true);
                     try {
-                        if (field.isAnnotationPresent(Id.class)) {
-                            if (field.getType().getSimpleName().equals("Long")) {
-                                return "default";
-                            } else if (field.getType().getSimpleName().equals("String")) {
-                                return String.valueOf(field.get(object));
-                            } else {
-                                return "";
-                            }
-                        } else {
-                            field.setAccessible(true);
-                            return String.valueOf(field.get(object));
+                        if (field.isAnnotationPresent(ManyToOne.class)){
+                            Field field1 = Arrays.stream(field.get(object).getClass().getDeclaredFields())
+                                    .filter(fieldO -> fieldO.isAnnotationPresent(Id.class))
+                                    .findAny().orElseThrow();
+                            field1.setAccessible(true);
+                            return field1.get(field.get(object));
                         }
+                        return field.get(object);
                     } catch (IllegalAccessException e) {
                         log.debug("Unable to access field: {}", field.getName());
-                        return "";
+                        throw new RuntimeException(e);
                     }
                 })
-                .map(field -> field.equals("default")
-                        || field.equals("null") ? field : "'" + field + "'")
                 .toList();
     }
 
@@ -292,7 +425,6 @@ public class H2ORManager extends ORManager {
             String result = getStringOfIdIfExist(object, clazz).orElse("");
             if (result.equals("")) {
                 saveObject(object, clazz);
-                setIsCacheUpToDate(false);
             } else {
                 throw new RuntimeException("Class should not have ID!");
             }
@@ -319,7 +451,13 @@ public class H2ORManager extends ORManager {
 
 
     private String getFieldName(Field field) {
-        return field.isAnnotationPresent(Column.class) ? field.getAnnotation(Column.class).value() : field.getName();
+        if(field.isAnnotationPresent(Column.class)){
+            return field.getAnnotation(Column.class).value();
+        } else if (field.isAnnotationPresent(ManyToOne.class)){
+            return field.getName().toLowerCase() + "_id";
+        } else {
+            return field.getName();
+        }
     }
 
     @Override
@@ -376,12 +514,6 @@ public class H2ORManager extends ORManager {
     @Override
     <T> List<T> findAll(Class<T> cls) {
 
-        if (isCacheUpToDate) {
-            List<T> items = new ArrayList<>();
-            items.addAll((Collection<T>) getCache().get(cls));
-            return items;
-        }
-
         String tableName = getTableName(cls);
 
         String baseSql = SELECT_ALL_FROM + tableName;
@@ -407,10 +539,6 @@ public class H2ORManager extends ORManager {
                 }
                 foundAll.add(newObject);
             }
-
-            establishNewCache((List<Object>) foundAll, cls);
-            log.info("Cached just got updated. Stored objects are {}", getCache().get(cls));
-            setIsCacheUpToDate(true);
 
         } catch (ReflectiveOperationException e) {
             throw new RuntimeException("Exception of reflective operation");
@@ -454,9 +582,9 @@ public class H2ORManager extends ORManager {
         MetaInfo of = metaInfo.of(cls);
 
         List<FieldInfo> fieldInfos = of.getFieldInfos();
-        List<String> fieldValuesForSaving = getFieldValuesForSaving(o, Arrays.stream(cls.getDeclaredFields()).toList())
+        List<String> fieldValuesForSaving = getFieldValueForSaving(o, Arrays.stream(cls.getDeclaredFields()).toList())
                 .stream()
-                .map(s -> s.replace("'", ""))
+                .map(String::valueOf)
                 .toList();
 
         int i = 0;
@@ -464,7 +592,8 @@ public class H2ORManager extends ORManager {
         for (FieldInfo fieldInfo : fieldInfos) {
 
             if (!fieldInfo.columnName.equals(fieldIdName)) {
-                String updateSql = UPDATE + tableName + SET + fieldInfo.columnName + EQUAL_QUESTION_MARK + WHERE + fieldIdName + EQUAL_QUESTION_MARK;
+                String updateSql =
+                        UPDATE + tableName + SET + fieldInfo.columnName + EQUAL_QUESTION_MARK + WHERE + fieldIdName + EQUAL_QUESTION_MARK;
                 try {
                     PreparedStatement ps = getConnectionWithDB().prepareStatement(updateSql);
                     ps.setObject(1, fieldValuesForSaving.get(i));
@@ -528,29 +657,24 @@ public class H2ORManager extends ORManager {
     @Override
     boolean delete(Object o) {
         Class<?> classOfObject = o.getClass();
-        Field[] declaredFields = classOfObject.getDeclaredFields();
         String valueOfField = getStringOfIdIfExist(o, classOfObject).orElse("");
-        String fieldName = Arrays.stream(declaredFields)
-                .filter(field -> field.isAnnotationPresent(Id.class))
-                .map(field -> field.isAnnotationPresent(Column.class)
-                        ? field.getAnnotation(Column.class).value() : field.getName())
-                .findAny().orElseThrow();
 
-        if (!valueOfField.equals("")) {
-            StringBuilder deleteSQL = new StringBuilder();
-            deleteSQL.append(DELETE_FROM)
-                    .append(getTableName(classOfObject))
-                    .append(" WHERE ")
-                    .append(fieldName)
-                    .append(" = ")
-                    .append(valueOfField);
+        if(!valueOfField.equals("")){
+            Field[] declaredFields = classOfObject.getDeclaredFields();
+            String fieldName = Arrays.stream(declaredFields)
+                                     .filter(field -> field.isAnnotationPresent(Id.class))
+                                     .map(this::getFieldName)
+                                     .findAny().orElseThrow();
 
-            try (PreparedStatement ps = getConnectionWithDB().prepareStatement(deleteSQL.toString())) {
+            String deleteSQL = DELETE_FROM + getTableName(classOfObject) +
+                               WHERE + fieldName + EQUAL_QUESTION_MARK;
+
+            try (PreparedStatement ps = getConnectionWithDB().prepareStatement(deleteSQL)){
+                ps.setObject(1,valueOfField);
                 ps.execute();
                 log.debug("Object deleted from DB successfully.");
-                MetaInfo.setIsCacheUpToDate(false);
             } catch (SQLException e) {
-                log.debug("Unable to delete object from DB. Message: {}", e.getSQLState());
+                log.debug("Unable to delete object from DB. Message: {}",e.getSQLState());
             }
             Arrays.stream(declaredFields).filter(field -> field.isAnnotationPresent(Id.class))
                     .forEach(field -> {

@@ -2,14 +2,12 @@ package teamblue.ORManager;
 
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import teamblue.ORManager.modelTest.IdInSecondPosition;
-import teamblue.ORManager.modelTest.MissingIdAnnotation;
-import teamblue.ORManager.modelTest.WithOneIdField;
-import teamblue.annotations.Entity;
 import teamblue.annotations.Table;
+import teamblue.classes.*;
 import teamblue.model.Book;
 
 import java.sql.Connection;
@@ -29,8 +27,8 @@ public class SaveH2MethodTest {
     public void setUp() throws Exception {
         orManager = ORManagerFactory.withPropertiesFrom("src/test/resources/db.file");
         orManager.getConnectionWithDB()
-                 .prepareStatement("DROP TABLE IF EXISTS BOOKS")
-                 .execute();
+                .prepareStatement("DROP ALL OBJECTS")
+                .execute();
     }
 
     @Test
@@ -78,8 +76,6 @@ public class SaveH2MethodTest {
 
     @Test
     public void shouldNotSaveObject_whenObjectHaveNoFields() {
-        @Entity
-        class WithoutFields {}
 
         WithoutFields test = new WithoutFields();
         String tableName =  getTableName(test.getClass());
@@ -137,6 +133,48 @@ public class SaveH2MethodTest {
         assertThat(sizeOfTableBeforeSave).isNotEqualTo(sizeOfTableAfterSave);
     }
 
+    @Test
+    public void shouldSaveObject_whenIdIsStringAndNull() throws SQLException {
+        StringId stringId = new StringId(null,"tests");
+        orManager.register(stringId.getClass());
+
+        orManager.save(stringId);
+
+        assertThat(stringId.getName()).isEqualTo(stringId.getClass().getSimpleName().toLowerCase() + "01");
+    }
+
+    @Test
+    @Ignore("Should be working with String ID, findById not support String")
+    public void shouldSaveObject_whenIdIsString() throws SQLException {
+        StringId stringId = new StringId(null,"tests");
+        orManager.register(stringId.getClass());
+
+        orManager.save(stringId);
+
+
+        StringId savedString = orManager.findById(stringId.getName(), stringId.getClass())
+                .get();
+        assertThat(stringId).isEqualTo(savedString);
+    }
+
+    @Test
+    public void shouldSaveObject_whenOneToManyRelationPresent() throws SQLException {
+        teamblue.model.OneToManyModels.Book book1 = new teamblue.model.OneToManyModels.Book("Harry Potter", LocalDate.of(2011, 11, 28));
+        teamblue.model.OneToManyModels.Book book2 = new teamblue.model.OneToManyModels.Book("Invincible",LocalDate.of(2010,05,24));
+        teamblue.model.OneToManyModels.Publisher publisher = new teamblue.model.OneToManyModels.Publisher("Publisher");
+        book1.setPublisher(publisher);
+        book2.setPublisher(publisher);
+
+        orManager.register(book1.getClass(), publisher.getClass());
+
+        orManager.save(publisher);
+        orManager.save(book1);
+        orManager.save(book2);
+
+        assertThat(book1.getPublisher()).isEqualTo(publisher);
+        assertThat(book2.getPublisher()).isEqualTo(publisher);
+    }
+
     @After
     public void afterTest() {
         Connection conn = null;
@@ -147,6 +185,9 @@ public class SaveH2MethodTest {
         }
         if (conn != null) {
             try {
+                orManager.getConnectionWithDB()
+                        .prepareStatement("DROP ALL OBJECTS")
+                        .execute();
                 conn.close();
             } catch (SQLException e) {
                 throw new RuntimeException(e);
