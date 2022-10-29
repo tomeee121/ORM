@@ -12,6 +12,7 @@ import java.lang.reflect.Field;
 import java.sql.*;
 import java.time.LocalDate;
 import java.util.*;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -387,11 +388,11 @@ public class H2ORManager extends ORManager {
                     field.setAccessible(true);
                     try {
                         if (field.isAnnotationPresent(ManyToOne.class)){
-                            Field field1 = Arrays.stream(field.get(object).getClass().getDeclaredFields())
+                            Field innerField = Arrays.stream(field.get(object).getClass().getDeclaredFields())
                                     .filter(fieldO -> fieldO.isAnnotationPresent(Id.class))
                                     .findAny().orElseThrow();
-                            field1.setAccessible(true);
-                            return field1.get(field.get(object));
+                            innerField.setAccessible(true);
+                            return innerField.get(field.get(object));
                         }
                         return field.get(object);
                     } catch (IllegalAccessException e) {
@@ -552,7 +553,7 @@ public class H2ORManager extends ORManager {
 
     @Override
     <T> Iterable<T> findAllAsIterable(Class<T> cls) {
-        return null;
+        return new FindAllIterator<>(cls);
     }
 
     @Override
@@ -655,4 +656,75 @@ public class H2ORManager extends ORManager {
         log.info("Unable to delete the object.");
         return false;
     }
+
+    private class FindAllIterator<T> implements Iterable<T> {
+        Class<T> clazz;
+        public FindAllIterator(Class<T> cls) {
+            this.clazz = cls;
+        }
+
+        @Override
+        public void forEach(Consumer<? super T> action) {
+            Iterable.super.forEach(action);
+        }
+
+        public Iterator<T> iterator(){
+            return new SimpleIterator<>(clazz);
+        }
+    }
+
+    private class SimpleIterator<T> implements Iterator<T> {
+        long cursor;
+        long sizeOfTable;
+        Class<T> clazz;
+
+        public SimpleIterator(Class<T> clazz) {
+            this.clazz = clazz;
+            setSizeOfTable();
+        }
+        private void setSizeOfTable() {
+            String tableName = getTableName(clazz);
+            try (PreparedStatement ps = getConnectionWithDB().prepareStatement("SELECT COUNT(*) FROM " + tableName)) {
+                ps.execute();
+                ResultSet resultSet = ps.getResultSet();
+                while (resultSet.next())
+                this.sizeOfTable = resultSet.getLong(1);
+            } catch (SQLException e) {
+                throw new RuntimeException(e);
+            }
+        }
+        @Override
+        public boolean hasNext() {
+            return cursor < sizeOfTable;
+        }
+
+        @Override
+        public T next() {
+            if(!hasNext()){
+                throw new NoSuchElementException();
+            }
+            String tableName = getTableName(clazz);
+            try (PreparedStatement ps = getConnectionWithDB().prepareStatement(SELECT_ALL_FROM + tableName + " LIMIT 1 " + "OFFSET " + cursor)) {
+                ResultSet rs = ps.executeQuery();
+                rs.next();
+                Constructor<T> declaredConstructor = clazz.getDeclaredConstructor();
+                declaredConstructor.setAccessible(true);
+                T newObject = declaredConstructor.newInstance();
+                MetaInfo metaInfo = new MetaInfo();
+                MetaInfo metaInfoInstanceObjects = metaInfo.of(clazz);
+                for (var fieldInfo : metaInfoInstanceObjects.getFieldInfos()) {
+                    var value = fieldInfo.getRSgetter(rs);
+                    var field = fieldInfo.getField();
+                    field.setAccessible(true);
+                    field.set(newObject, value);
+                }
+                cursor ++;
+                return newObject;
+            } catch ( SQLException | ReflectiveOperationException e) {
+                throw new RuntimeException(e);
+            }
+        }
+    }
 }
+
+
