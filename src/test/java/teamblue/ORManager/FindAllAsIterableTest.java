@@ -2,7 +2,8 @@ package teamblue.ORManager;
 
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.*;
-import teamblue.model.Book;
+import teamblue.model.OneToManyModels.Book;
+import teamblue.model.OneToManyModels.Publisher;
 
 import java.sql.Connection;
 import java.sql.SQLException;
@@ -27,13 +28,15 @@ class FindAllAsIterableTest {
     @Test
     @DisplayName("Should return object of book when iterating through books")
     void shouldReturnObjectOfBookWhenIteratingThroughBooks() throws SQLException {
+        Publisher publisher = new Publisher("Helion");
         Book book = new Book("Logan", LocalDate.of(2021,10,20));
-        Class<? extends Book> clazz = book.getClass();
-        orManager.register(clazz);
+        book.setPublisher(publisher);
+        orManager.register(book.getClass(),publisher.getClass());
 
+        orManager.save(publisher);
         orManager.save(book);
-        Iterator<? extends Book> iterator = orManager.findAllAsIterable(clazz).iterator();
-
+        Iterator<? extends Book> iterator = orManager.findAllAsIterable(book.getClass()).iterator();
+        System.out.println(iterator.hasNext());
         assertThat(iterator.hasNext()).isTrue();
     }
 
@@ -54,7 +57,7 @@ class FindAllAsIterableTest {
     void shouldReturnTheSameObjectWhenInvokingNextMethodOfIterator() throws SQLException {
         Book book = new Book("Logan", LocalDate.of(2021,10,20));
         Class<? extends Book> clazz = book.getClass();
-        orManager.register(clazz);
+        orManager.register(clazz, Publisher.class);
         orManager.save(book);
         Iterator<? extends Book> iterator = orManager.findAllAsIterable(clazz).iterator();
 
@@ -65,7 +68,7 @@ class FindAllAsIterableTest {
 
     @AfterEach
     public void afterTest() {
-        Connection conn = null;
+        Connection conn;
         try {
             conn = orManager.getConnectionWithDB();
         } catch (SQLException e) {
