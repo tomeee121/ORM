@@ -13,15 +13,9 @@ j
 :src/test/java/teamblue/ORManager/ColumnAnnotationTest.java,8\9\893375bd3f610cbc50e83f3455b1ee28ae92e13e
 7
 pom.xml,4\4\442292b8a7efeabbe4cc176709b833b1792140ec
-[
-+src/main/java/teamblue/model/Publisher.java,7\2\72bcf25a70693a8a5f19386545b3746669bc5874
 ]
 -src/main/java/teamblue/annotations/Table.java,b\3\b3112f2bd795b6ee90f1acfaee5bca0e8edc69cf
-b
-2src/test/java/teamblue/ORManager/ORMCacheTest.java,9\4\9415c1134e8fff87686ca2b1ebeb2f0044bc61b9
+_
+/src/main/java/teamblue/ORManager/ORManager.java,8\2\827bd1b4625c00b524dfe7c901eec57b3b56a9d0
 Z
 *src/main/java/teamblue/annotations/Id.java,d\7\d7846ca703d23ae3540a810773065c623f4e6d3b
-_
-/src/test/java/teamblue/ORManager/MergeTest.java,1\0\1072ca6751212b04314e175b91023f069c555576
-d
-4src/main/java/teamblue/constants/h2/ConstantsH2.java,0\a\0aa8dcd9d98c984b76a79ed175d55b1d8c3107e2

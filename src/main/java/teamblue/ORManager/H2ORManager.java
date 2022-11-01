@@ -48,56 +48,49 @@ public class H2ORManager extends ORManager {
  ManyToOne feature
  */
         if (entityClasses.length > 1) {
-            Field[] manyToOneAnnotatedFields =
-                    Arrays.stream(entityClasses)
-                            .filter(classToCheck -> classToCheck.isAnnotationPresent(Entity.class))
-                            .map(cls -> cls.getDeclaredFields())
-                            .flatMap(array -> Stream.of(array).filter(field -> field.isAnnotationPresent(ManyToOne.class)))
-                            .toArray(Field[]::new);
 
             Class<? extends Class> manyToOneSideTable =
                     Arrays.stream(entityClasses).filter(classToCheck -> classToCheck.isAnnotationPresent(Entity.class))
                             .filter(cls -> Arrays.stream(cls.getDeclaredFields()).anyMatch(field -> field.isAnnotationPresent(ManyToOne.class)))
                             .findFirst().orElseThrow(() -> new RuntimeException("Incorrect mapping"));
 
-            for (Field fieldM1 : manyToOneAnnotatedFields) {
-                fieldM1.setAccessible(true);
-                for (Class entityClassForOneToMany : entityClasses) {
-                    String id1MFieldName = null;
-                    Class oneToManyIdType = null;
-                    for (Field field1M : entityClassForOneToMany.getDeclaredFields()) {
-                        if (field1M.isAnnotationPresent(Id.class)) {
-                            if (field1M.isAnnotationPresent(Column.class)) {
-                                id1MFieldName = field1M.getAnnotation(Column.class).value();
-                            } else {
-                                id1MFieldName = field1M.getName();
-                            }
-                            oneToManyIdType = field1M.getType();
+            for (Class entityClassForOneToMany : entityClasses) {
+                String id1MFieldName = null;
+                Class oneToManyIdType = null;
+                for (Field field1M : entityClassForOneToMany.getDeclaredFields()) {
+                    if (field1M.isAnnotationPresent(Id.class)) {
+/**
+                        Need info about name and type of Id by parent entity because it reflects foreign key attributes by child entity side
+*/
+                        if (field1M.isAnnotationPresent(Column.class)) {
+                           id1MFieldName = NameConverter.getFieldName(field1M);
                         }
-                        if (field1M.isAnnotationPresent(OneToMany.class)) {
-                            field1M.setAccessible(true);
-                            String manyToOneTableName =
-                                    manyToOneSideTable.isAnnotationPresent(Table.class) ?
-                                            manyToOneSideTable.getAnnotation(Table.class).value() : manyToOneSideTable.getSimpleName();
-                            String oneToManyTableName =
-                                    entityClassForOneToMany.isAnnotationPresent(Column.class) ?
-                                            manyToOneSideTable.getAnnotation(Column.class).value() : entityClassForOneToMany.getSimpleName();
-                            try {
-                                PreparedStatement addForeignKeyColumn =
-                                        getConnectionWithDB().prepareStatement(ALTER_TABLE + manyToOneTableName + ADD
-                                                + oneToManyTableName.toLowerCase() + _ID + oneToManyIdType.getSimpleName());
-                                addForeignKeyColumn.executeUpdate();
+                        oneToManyIdType = field1M.getType();
+                    }
+                    if (field1M.isAnnotationPresent(OneToMany.class)) {
 
-                                PreparedStatement foreignKeyConstraintSql =
-                                        getConnectionWithDB().prepareStatement(ALTER_TABLE + manyToOneTableName + ADD_FOREIGN_KEY +
-                                                LEFT_PARENTHESIS + oneToManyTableName.toLowerCase() + _ID + RIGHT_PARENTHESIS + REFERENCES + oneToManyTableName
-                                                + LEFT_PARENTHESIS + id1MFieldName + RIGHT_PARENTHESIS);
-                                foreignKeyConstraintSql.executeUpdate();
+/**
+                        If relationships on entities are mapped we can also extract table names and start writing some DDL
+*/
 
-                            } catch (SQLException e) {
-                                log.error("SQL connection exception during creating foreign key constraint!");
-                                throw new RuntimeException(e);
-                            }
+                        field1M.setAccessible(true);
+                        String manyToOneTableName = NameConverter.getTableName(manyToOneSideTable);
+                        String oneToManyTableName = NameConverter.getTableName(entityClassForOneToMany);
+                        try (Connection conn = getConnectionWithDB()) {
+
+                            String addForeignKeyColumnSql = ALTER_TABLE + manyToOneTableName + ADD
+                                    + oneToManyTableName.toLowerCase() + _ID + oneToManyIdType.getSimpleName(); // publisher_id - the name of FK (as example)
+
+                            String foreignKeyConstraintSql = ALTER_TABLE + manyToOneTableName + ADD_FOREIGN_KEY +
+                                    LEFT_PARENTHESIS + oneToManyTableName.toLowerCase() + _ID + RIGHT_PARENTHESIS + REFERENCES + oneToManyTableName
+                                    + LEFT_PARENTHESIS + id1MFieldName + RIGHT_PARENTHESIS;
+
+                            executeUpdate(addForeignKeyColumnSql, conn);
+                            executeUpdate(foreignKeyConstraintSql, conn);
+
+                        } catch (SQLException e) {
+                            log.error("Error creating connection to DB");
+                            throw new RuntimeException("Error creating connection to DB");
                         }
                     }
                 }
@@ -108,16 +101,9 @@ public class H2ORManager extends ORManager {
     void registerClass(Class<?> entityClass) {
         String tableName = "";
 
-        if (entityClass.isAnnotationPresent(Table.class)) {
-            tableName = entityClass.getDeclaredAnnotation(Table.class)
-                    .value();
-        } else {
-            tableName = entityClass.getSimpleName();
-        }
-
+        tableName = NameConverter.getTableName(entityClass);
 
         List<Field> fields = new ArrayList<>();
-
 
         Field[] declaredFields = entityClass.getDeclaredFields();
         for (Field declaredField : declaredFields) {
@@ -136,9 +122,7 @@ public class H2ORManager extends ORManager {
 /**
  ManyToOne feature
  */
-            if (!fields.get(i).isAnnotationPresent(OneToMany.class) && !fields.get(i).isAnnotationPresent(ManyToOne.class)) {
-                getCastedTypeToH2(fields, i, baseSql);
-            }
+            getCastedTypeToH2(fields, i, baseSql);
 
             if (i != fields.size() - 1) {
                 baseSql.append(COLON);
@@ -146,9 +130,9 @@ public class H2ORManager extends ORManager {
         }
         baseSql.append(RIGHT_PARENTHESIS);
 
-        try {
+        try (Connection conn = getConnectionWithDB()) {
             PreparedStatement addTableStatement =
-                    getConnectionWithDB().prepareStatement(String.valueOf(baseSql));
+                    conn.prepareStatement(String.valueOf(baseSql));
             addTableStatement.executeUpdate();
 
             List<Field> columnFields = Arrays.stream(declaredFields)
@@ -211,6 +195,22 @@ public class H2ORManager extends ORManager {
         }
     }
 
+    private static void executeUpdate(String sql, Connection conn) {
+        PreparedStatement preparedStmt = null;
+        try {
+            preparedStmt = conn.prepareStatement(sql);
+        } catch (SQLException e) {
+            log.error("Error preparing update statement: {}", e.getMessage());
+            throw new RuntimeException("Prepared statement syntax error");
+        }
+        try {
+            preparedStmt.executeUpdate();
+        } catch (SQLException e) {
+            log.error("Error executing update: {}", e.getMessage());
+            throw new RuntimeException("Executing update error");
+        }
+    }
+
     @Override
     public Object save(Object object) {
         String oClassName = object.getClass().getName();
@@ -253,7 +253,7 @@ public class H2ORManager extends ORManager {
 
         String generatedKeyString = null;
         try {
-            generatedKeyString = StringIdGenerator.generate(clazz,getConnectionWithDB());
+            generatedKeyString = StringIdGenerator.generate(clazz, getConnectionWithDB());
         } catch (SQLException e) {
             throw new RuntimeException(e.getSQLState());
         }
@@ -293,7 +293,7 @@ public class H2ORManager extends ORManager {
             throw new RuntimeException(e.getSQLState());
         }
 
-        if(!(generatedKey instanceof String) && idField != null) {
+        if (!(generatedKey instanceof String) && idField != null) {
             if (!idField.getType().getSimpleName().equalsIgnoreCase("String")) {
                 setFieldValueWithAnnotation(object, clazz, generatedKey, Id.class);
                 log.debug("Object of {} saved successfully with Id: {}", object.getClass()
@@ -315,7 +315,7 @@ public class H2ORManager extends ORManager {
         List<String> listOfFieldsName = declaredFields.stream().map(NameConverter::getFieldName).toList();
 
 
-        map.put("names",listOfFieldsName);
+        map.put("names", listOfFieldsName);
 
         List<String> fieldValues = getFieldValueForSaving(object, declaredFields)
                 .stream().map(String::valueOf).toList();
@@ -324,13 +324,13 @@ public class H2ORManager extends ORManager {
         List<Field> fieldsId = new ArrayList<>();
 
         int i = 0;
-        for (Field field: declaredFields) {
+        for (Field field : declaredFields) {
             String typeName = field.getType().getSimpleName();
-            if (field.isAnnotationPresent(Id.class)){
+            if (field.isAnnotationPresent(Id.class)) {
                 if (typeName.equals("UUID") || typeName.equalsIgnoreCase("Long")) {
                     fieldValuesForSaving.add("default");
                 } else {
-                    fieldValuesForSaving.add("'"+ generatedKeyString + "'");
+                    fieldValuesForSaving.add("'" + generatedKeyString + "'");
                 }
                 fieldsId.add(field);
             } else {
@@ -340,7 +340,7 @@ public class H2ORManager extends ORManager {
             i++;
         }
         map.put("values", fieldValuesForSaving);
-        map.put("fieldId",fieldsId);
+        map.put("fieldId", fieldsId);
 
         return map;
     }
@@ -360,18 +360,19 @@ public class H2ORManager extends ORManager {
 
     private Object runSQLAndGetId(StringBuilder saveSql, Field fieldId) throws SQLException {
         Object generatedKey = null;
-        try (PreparedStatement ps = getConnectionWithDB().prepareStatement(saveSql.toString(),
-                Statement.RETURN_GENERATED_KEYS)) {
+        try (Connection conn = getConnectionWithDB()) {
+            PreparedStatement ps = conn.prepareStatement(saveSql.toString(),
+                    Statement.RETURN_GENERATED_KEYS);
             ps.executeUpdate();
             ResultSet rs = ps.getGeneratedKeys();
             while (rs.next()) {
-                if(fieldId == null){
+                if (fieldId == null) {
                     break;
                 }
                 String idObjectType = fieldId.getType().getSimpleName();
                 if (idObjectType.equalsIgnoreCase("Long")) {
                     generatedKey = rs.getLong(1);
-                } else if(idObjectType.equalsIgnoreCase("UUID")){
+                } else if (idObjectType.equalsIgnoreCase("UUID")) {
                     generatedKey = rs.getString(1);
                 }
             }
@@ -389,7 +390,7 @@ public class H2ORManager extends ORManager {
                 .map(field -> {
                     field.setAccessible(true);
                     try {
-                        if (field.isAnnotationPresent(ManyToOne.class)){
+                        if (field.isAnnotationPresent(ManyToOne.class)) {
                             if (field.get(object) != null) {
                                 Field innerField = Arrays.stream(field.get(object).getClass().getDeclaredFields())
                                         .filter(fieldO -> fieldO.isAnnotationPresent(Id.class))
@@ -461,8 +462,8 @@ public class H2ORManager extends ORManager {
         String sqlStatement = SELECT_ALL_FROM + tableName + WHERE + fieldName + EQUAL_QUESTION_MARK;
         Optional<T> result = Optional.empty();
 
-        try {
-            PreparedStatement ps = getConnectionWithDB().prepareStatement(sqlStatement);
+        try (Connection conn = getConnectionWithDB()) {
+            PreparedStatement ps = conn.prepareStatement(sqlStatement);
             ps.setObject(1, id);
             ResultSet rs = ps.executeQuery();
             Constructor<T> declaredConstructor = cls.getDeclaredConstructor();
@@ -502,12 +503,12 @@ public class H2ORManager extends ORManager {
 
         String tableName = NameConverter.getTableName(cls);
 
-        String baseSql = SELECT_ALL_FROM + tableName;
+        String findAllSql = SELECT_ALL_FROM + tableName;
 
         PreparedStatement findAllStmt = null;
         List<T> foundAll = new ArrayList<>();
-        try {
-            findAllStmt = getConnectionWithDB().prepareStatement(baseSql);
+        try (Connection conn = getConnectionWithDB()) {
+            findAllStmt = conn.prepareStatement(findAllSql);
             ResultSet resultSet = null;
             resultSet = findAllStmt.executeQuery();
             Constructor<T> constructor = cls.getDeclaredConstructor();
@@ -559,7 +560,7 @@ public class H2ORManager extends ORManager {
         String fieldIdName = Arrays.stream(cls.getDeclaredFields())
                 .filter(f -> f.isAnnotationPresent(Id.class))
                 .map(Field::getName)
-                .findFirst().get();
+                .findFirst().orElseThrow(() -> new RuntimeException("No field annotated as Id"));
 
 
         String tableName = NameConverter.getTableName(cls);
@@ -580,8 +581,8 @@ public class H2ORManager extends ORManager {
             if (!fieldInfo.columnName.equals(fieldIdName)) {
                 String updateSql =
                         UPDATE + tableName + SET + fieldInfo.columnName + EQUAL_QUESTION_MARK + WHERE + fieldIdName + EQUAL_QUESTION_MARK;
-                try {
-                    PreparedStatement ps = getConnectionWithDB().prepareStatement(updateSql);
+                try (Connection conn = getConnectionWithDB()) {
+                    PreparedStatement ps = conn.prepareStatement(updateSql);
                     ps.setObject(1, fieldValuesForSaving.get(i));
                     ps.setString(2, valueOfField);
                     ps.execute();
@@ -619,11 +620,11 @@ public class H2ORManager extends ORManager {
 
         String retrieveSql = SELECT_ALL_FROM + tableName + WHERE + fieldIdName + EQUAL_QUESTION_MARK;
 
-        try {
-            PreparedStatement ps = getConnectionWithDB().prepareStatement(retrieveSql);
-            ps.setString(1 , valueOfField);
+        try (Connection conn = getConnectionWithDB()) {
+            PreparedStatement ps = conn.prepareStatement(retrieveSql);
+            ps.setString(1, valueOfField);
             ResultSet resultSet = ps.executeQuery();
-            while(resultSet.next()){
+            while (resultSet.next()) {
                 for (FieldInfo fieldInfo : fieldInfos) {
                     if (!fieldInfo.columnName.equals(fieldIdName)) {
                         Object rSgetter = fieldInfo.getRSgetter(resultSet);
@@ -645,7 +646,7 @@ public class H2ORManager extends ORManager {
         Class<?> classOfObject = o.getClass();
         String valueOfField = getStringOfIdIfExist(o, classOfObject).orElse("");
 
-        if(!valueOfField.equals("")){
+        if (!valueOfField.equals("")) {
             Field[] declaredFields = classOfObject.getDeclaredFields();
             String fieldName = Arrays.stream(declaredFields)
                                      .filter(field -> field.isAnnotationPresent(Id.class))
@@ -655,8 +656,9 @@ public class H2ORManager extends ORManager {
             String deleteSQL = DELETE_FROM + NameConverter.getTableName(classOfObject) +
                                WHERE + fieldName + EQUAL_QUESTION_MARK;
 
-            try (PreparedStatement ps = getConnectionWithDB().prepareStatement(deleteSQL)){
-                ps.setObject(1,valueOfField);
+            try (Connection conn = getConnectionWithDB()) {
+                PreparedStatement ps = conn.prepareStatement(deleteSQL);
+                ps.setObject(1, valueOfField);
                 ps.execute();
                 log.debug("Object deleted from DB successfully.");
             } catch (SQLException e) {
@@ -685,6 +687,7 @@ public class H2ORManager extends ORManager {
 
     private class FindAllIterator<T> implements Iterable<T> {
         Class<T> clazz;
+
         public FindAllIterator(Class<T> cls) {
             this.clazz = cls;
         }
@@ -694,7 +697,7 @@ public class H2ORManager extends ORManager {
             Iterable.super.forEach(action);
         }
 
-        public Iterator<T> iterator(){
+        public Iterator<T> iterator() {
             return new SimpleIterator<>(clazz);
         }
     }
@@ -708,13 +711,15 @@ public class H2ORManager extends ORManager {
             this.clazz = clazz;
             setSizeOfTable();
         }
+
         private void setSizeOfTable() {
             String tableName = NameConverter.getTableName(clazz);
             try (PreparedStatement ps = getConnectionWithDB().prepareStatement("SELECT COUNT(*) FROM " + tableName)) {
                 ps.execute();
                 ResultSet resultSet = ps.getResultSet();
-                while (resultSet.next())
-                this.sizeOfTable = resultSet.getLong(1);
+                while (resultSet.next()) {
+                    this.sizeOfTable = resultSet.getLong(1);
+                }
             } catch (SQLException e) {
                 throw new RuntimeException(e);
             }
@@ -726,7 +731,7 @@ public class H2ORManager extends ORManager {
 
         @Override
         public T next() {
-            if(!hasNext()){
+            if (!hasNext()) {
                 throw new NoSuchElementException();
             }
             String tableName = NameConverter.getTableName(clazz);
@@ -752,9 +757,9 @@ public class H2ORManager extends ORManager {
                         field.set(newObject, value);
                     }
                 }
-                cursor ++;
+                cursor++;
                 return newObject;
-            } catch ( SQLException | ReflectiveOperationException e) {
+            } catch (SQLException | ReflectiveOperationException e) {
                 throw new RuntimeException(e);
             }
         }
