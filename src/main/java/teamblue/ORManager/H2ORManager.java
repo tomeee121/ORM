@@ -406,6 +406,11 @@ public class H2ORManager extends ORManager {
                 })
                 .toList();
     }
+  
+    private static String getTableName(Class<?> clazz) {
+        return clazz.isAnnotationPresent(Table.class) ? clazz.getAnnotation(Table.class)
+                .value() : clazz.getSimpleName();
+    }
 
     @Override
     void persist(Object object) {
@@ -456,9 +461,109 @@ public class H2ORManager extends ORManager {
 
         String fieldName = NameConverter.getFieldName(fieldId);
 
+        Optional<T> result = Optional.empty();
+
+        if (Arrays.stream(cls.getDeclaredFields()).noneMatch(f -> f.isAnnotationPresent(ManyToOne.class))) {
+            result = regularFindById(id, cls, tableName, fieldName);
+        } else {
+            result = manyToOneFindById(id, cls, tableName, fieldName);
+        }
+
+        if (result.isEmpty()) {
+            log.info("There is no such object with given ID: {} in {}", id, cls.getSimpleName());
+            throw new NoSuchElementException();
+        }
+        return result;
+    }
+
+    private <T> Optional<T> manyToOneFindById(Serializable id,
+                                              Class<T> cls,
+                                              String tableName,
+                                              String fieldName
+    ) {
+
+        Field fieldManyToOne = Arrays.stream(cls.getDeclaredFields())
+                .filter(f -> !f.isAnnotationPresent(OneToMany.class))
+                .filter(f -> f.isAnnotationPresent(ManyToOne.class))
+                .findFirst().orElseThrow();
+
+        String innerTableName = getTableName(fieldManyToOne.getType());
+
+        String manyToOneFieldName = fieldManyToOne.getName();
+
+        String innerIdFieldName = Arrays.stream(fieldManyToOne.getType().getDeclaredFields())
+                .filter(f -> f.isAnnotationPresent(Id.class))
+                .findFirst().get().getName();
+
+
+        Optional<T> result = Optional.empty();
+
+        String sqlStatement =
+                SELECT_ALL_FROM + tableName +
+                        " INNER JOIN " + innerTableName +
+                        " ON " + manyToOneFieldName + _ID + "=" + innerTableName + "." + innerIdFieldName +
+                        WHERE + tableName + "." + fieldName + EQUAL_QUESTION_MARK;
+
+        try (Connection conn = getConnectionWithDB()) {
+            PreparedStatement ps = conn.prepareStatement(sqlStatement);
+            ps.setObject(1, id);
+            ResultSet rs = ps.executeQuery();
+            Constructor<T> declaredConstructor = cls.getDeclaredConstructor();
+            Constructor<T> declaredManyToOneConstructor = (Constructor<T>) fieldManyToOne.getType().getDeclaredConstructor();
+            declaredConstructor.setAccessible(true);
+            declaredManyToOneConstructor.setAccessible(true);
+            MetaInfo metaInfo = new MetaInfo();
+            MetaInfo manyToOneMetaInfo = new MetaInfo();
+
+            while (rs.next()) {
+                T newObject = declaredConstructor.newInstance();
+                T manyToOne = declaredManyToOneConstructor.newInstance();
+                MetaInfo metaInfoOfClass = metaInfo.of(cls);
+                MetaInfo metaInfoOfManyToOne = manyToOneMetaInfo.of(fieldManyToOne.getType());
+                for (FieldInfo field : metaInfoOfClass.getFieldInfos()) {
+
+                    if (field.getField().getType().equals(fieldManyToOne.getType())) {
+
+                        for (FieldInfo fieldMany : metaInfoOfManyToOne.getFieldInfos()) {
+                            if (!fieldMany.getField().isAnnotationPresent(OneToMany.class)) {
+
+                                Object value = fieldMany.getRSgetter(rs);
+                                Field thisField = fieldMany.getField();
+                                thisField.setAccessible(true);
+                                thisField.set(manyToOne, value);
+                            } else {
+                                //TODO - show all books author has
+                            }
+                        }
+                        Field thisField = field.getField();
+                        thisField.setAccessible(true);
+                        thisField.set(newObject, manyToOne);
+                    } else {
+                        Object value = field.getRSgetter(rs);
+                        Field thisField = field.getField();
+                        thisField.setAccessible(true);
+                        thisField.set(newObject, value);
+                    }
+                }
+
+                result = Optional.of(newObject);
+
+
+                log.info("Result from finding by id {} is {}", id, newObject);
+            }
+
+
+        } catch (SQLException | ReflectiveOperationException e) {
+            throw new RuntimeException(e);
+        }
+        return result;
+    }
+
+    private <T> Optional<T> regularFindById(Serializable id, Class<T> cls, String tableName, String fieldName) {
+
+        Optional<T> result = Optional.empty();
 
         String sqlStatement = SELECT_ALL_FROM + tableName + WHERE + fieldName + EQUAL_QUESTION_MARK;
-        Optional<T> result = Optional.empty();
 
         try (Connection conn = getConnectionWithDB()) {
             PreparedStatement ps = conn.prepareStatement(sqlStatement);
@@ -472,10 +577,12 @@ public class H2ORManager extends ORManager {
                 T newObject = declaredConstructor.newInstance();
                 MetaInfo metaInfoOfClass = metaInfo.of(cls);
                 for (FieldInfo field : metaInfoOfClass.getFieldInfos()) {
+
                     Object value = field.getRSgetter(rs);
                     Field thisField = field.getField();
                     thisField.setAccessible(true);
                     thisField.set(newObject, value);
+
                 }
 
                 result = Optional.of(newObject);
@@ -573,11 +680,12 @@ public class H2ORManager extends ORManager {
                 .toList();
 
         int i = 0;
+        String updateSql = "";
 
         for (FieldInfo fieldInfo : fieldInfos) {
 
             if (!fieldInfo.columnName.equals(fieldIdName)) {
-                String updateSql =
+                updateSql =
                         UPDATE + tableName + SET + fieldInfo.columnName + EQUAL_QUESTION_MARK + WHERE + fieldIdName + EQUAL_QUESTION_MARK;
                 try (Connection conn = getConnectionWithDB()) {
                     PreparedStatement ps = conn.prepareStatement(updateSql);
