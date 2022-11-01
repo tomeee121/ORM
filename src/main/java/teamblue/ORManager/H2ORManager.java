@@ -47,12 +47,6 @@ public class H2ORManager extends ORManager {
  ManyToOne feature
  */
         if (entityClasses.length > 1) {
-            Field[] manyToOneAnnotatedFields =
-                    Arrays.stream(entityClasses)
-                            .filter(classToCheck -> classToCheck.isAnnotationPresent(Entity.class))
-                            .map(cls -> cls.getDeclaredFields())
-                            .flatMap(array -> Stream.of(array).filter(field -> field.isAnnotationPresent(ManyToOne.class)))
-                            .toArray(Field[]::new);
 
             Class<? extends Class> manyToOneSideTable =
                     Arrays.stream(entityClasses).filter(classToCheck -> classToCheck.isAnnotationPresent(Entity.class))
@@ -64,21 +58,27 @@ public class H2ORManager extends ORManager {
                 Class oneToManyIdType = null;
                 for (Field field1M : entityClassForOneToMany.getDeclaredFields()) {
                     if (field1M.isAnnotationPresent(Id.class)) {
+/**
+                        Need info about name and type of Id by parent entity because it reflects foreign key attributes by child entity side
+*/
                         if (field1M.isAnnotationPresent(Column.class)) {
-                            id1MFieldName = field1M.getAnnotation(Column.class).value();
-                        } else {
-                            id1MFieldName = field1M.getName();
+                           id1MFieldName = getFieldName(field1M);
                         }
                         oneToManyIdType = field1M.getType();
                     }
                     if (field1M.isAnnotationPresent(OneToMany.class)) {
+
+/**
+                        If relationships on entities are mapped we can also extract table names and start writing some DDL
+*/
+
                         field1M.setAccessible(true);
                         String manyToOneTableName = getTableName(manyToOneSideTable);
                         String oneToManyTableName = getTableName(entityClassForOneToMany);
                         try (Connection conn = getConnectionWithDB()) {
 
                             String addForeignKeyColumnSql = ALTER_TABLE + manyToOneTableName + ADD
-                                    + oneToManyTableName.toLowerCase() + _ID + oneToManyIdType.getSimpleName();
+                                    + oneToManyTableName.toLowerCase() + _ID + oneToManyIdType.getSimpleName(); // publisher_id - the name of FK (as example)
 
                             String foreignKeyConstraintSql = ALTER_TABLE + manyToOneTableName + ADD_FOREIGN_KEY +
                                     LEFT_PARENTHESIS + oneToManyTableName.toLowerCase() + _ID + RIGHT_PARENTHESIS + REFERENCES + oneToManyTableName
