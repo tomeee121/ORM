@@ -62,9 +62,7 @@ public class H2ORManager extends ORManager {
 /**
                         Need info about name and type of Id by parent entity because it reflects foreign key attributes by child entity side
 */
-                        if (field1M.isAnnotationPresent(Column.class)) {
-                           id1MFieldName = NameConverter.getFieldName(field1M);
-                        }
+                        id1MFieldName = NameConverter.getFieldName(field1M);
                         oneToManyIdType = field1M.getType();
                     }
                     if (field1M.isAnnotationPresent(OneToMany.class)) {
@@ -748,6 +746,7 @@ public class H2ORManager extends ORManager {
                     var field = fieldInfo.getField();
                     field.setAccessible(true);
                     if (field.isAnnotationPresent(OneToMany.class)) {
+                        continue;
                     } else if (field.isAnnotationPresent(ManyToOne.class) && value instanceof Serializable val) {
                         Optional<T> byId = findById(val, clazz);
                         if (byId.isPresent()){

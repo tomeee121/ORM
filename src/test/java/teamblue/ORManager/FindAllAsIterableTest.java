@@ -28,7 +28,7 @@ class FindAllAsIterableTest {
 
     @Test
     @DisplayName("Should return object of book when iterating through books")
-    @Ignore("MetaInfoClass not working with OneToMany/ManyToOne")
+    @Disabled("MetaInfoClass not working with OneToMany/ManyToOne")
     void shouldReturnObjectOfBookWhenIteratingThroughBooks() throws SQLException {
         Publisher publisher = new Publisher("Helion");
         Book book = new Book("Logan", LocalDate.of(2021,10,20));
