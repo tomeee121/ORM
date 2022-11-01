@@ -74,7 +74,8 @@ public class H2ORManager extends ORManager {
                     if (field1M.isAnnotationPresent(OneToMany.class)) {
                         field1M.setAccessible(true);
                         String manyToOneTableName = getTableName(manyToOneSideTable);
-                        String oneToManyTableName = getMappedTableChangedName(entityClassForOneToMany, manyToOneSideTable);
+                        String oneToManyTableName =
+                                getMappedTableChangedName(entityClassForOneToMany, manyToOneSideTable);
                         try (Connection conn = getConnectionWithDB()) {
 
                             String addForeignKeyColumnSql = ALTER_TABLE + manyToOneTableName + ADD
@@ -121,9 +122,7 @@ public class H2ORManager extends ORManager {
 /**
  ManyToOne feature
  */
-            if (!fields.get(i).isAnnotationPresent(OneToMany.class) && !fields.get(i).isAnnotationPresent(ManyToOne.class)) {
-                getCastedTypeToH2(fields, i, baseSql);
-            }
+            getCastedTypeToH2(fields, i, baseSql);
 
             if (i != fields.size() - 1) {
                 baseSql.append(COLON);
