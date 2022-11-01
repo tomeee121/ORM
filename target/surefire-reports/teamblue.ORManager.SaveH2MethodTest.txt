@@ -1,4 +1,0 @@
--------------------------------------------------------------------------------
-Test set: teamblue.ORManager.SaveH2MethodTest
--------------------------------------------------------------------------------
-Tests run: 7, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.635 s - in teamblue.ORManager.SaveH2MethodTest

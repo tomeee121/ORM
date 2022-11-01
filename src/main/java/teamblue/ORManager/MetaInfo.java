@@ -1,6 +1,6 @@
 package teamblue.ORManager;
 
-import teamblue.annotations.Column;
+import teamblue.util.NameConverter;
 
 import java.lang.reflect.Field;
 import java.sql.ResultSet;
@@ -8,8 +8,6 @@ import java.sql.SQLException;
 import java.text.SimpleDateFormat;
 import java.time.LocalDate;
 import java.util.*;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 class MetaInfo {
     List<FieldInfo> fields = new ArrayList<>();
@@ -26,7 +24,7 @@ class MetaInfo {
         Arrays.stream(cls.getDeclaredFields())
                 .peek(f -> f.setAccessible(true))
                 .forEach(field -> fields.add(
-                        (new FieldInfo(field.isAnnotationPresent(Column.class) ? field.getAnnotation(Column.class).value() : field.getName(), field, cls))));
+                        (new FieldInfo(NameConverter.getFieldName(field), field, cls))));
         return new MetaInfo(fields);
     }
 
@@ -63,4 +61,5 @@ class MetaInfo {
             }
         }
     }
+
 }
