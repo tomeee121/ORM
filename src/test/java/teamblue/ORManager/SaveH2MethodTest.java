@@ -160,7 +160,7 @@ public class SaveH2MethodTest {
     @Test
     public void shouldSaveObject_whenOneToManyRelationPresent() throws SQLException {
         teamblue.model.OneToManyModels.Book book1 = new teamblue.model.OneToManyModels.Book("Harry Potter", LocalDate.of(2011, 11, 28));
-        teamblue.model.OneToManyModels.Book book2 = new teamblue.model.OneToManyModels.Book("Invincible",LocalDate.of(2010,05,24));
+        teamblue.model.OneToManyModels.Book book2 = new teamblue.model.OneToManyModels.Book("Invincible",LocalDate.of(2010,5,24));
         teamblue.model.OneToManyModels.Publisher publisher = new teamblue.model.OneToManyModels.Publisher("Publisher");
         book1.setPublisher(publisher);
         book2.setPublisher(publisher);
@@ -177,7 +177,7 @@ public class SaveH2MethodTest {
 
     @After
     public void afterTest() {
-        Connection conn = null;
+        Connection conn;
         try {
             conn = orManager.getConnectionWithDB();
         } catch (SQLException e) {
@@ -185,9 +185,9 @@ public class SaveH2MethodTest {
         }
         if (conn != null) {
             try {
-                orManager.getConnectionWithDB()
-                        .prepareStatement("DROP ALL OBJECTS")
-                        .execute();
+//                orManager.getConnectionWithDB()
+//                        .prepareStatement("DROP ALL OBJECTS")
+//                        .execute();
                 conn.close();
             } catch (SQLException e) {
                 throw new RuntimeException(e);

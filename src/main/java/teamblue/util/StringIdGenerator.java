@@ -1,18 +1,19 @@
 package teamblue.util;
 
-import teamblue.annotations.Table;
-
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 
 public class StringIdGenerator {
+    private StringIdGenerator(){
+        throw new IllegalCallerException();
+    }
 
     public static String generate(Class<?> clazz, Connection conn){
         long sizeOfTable = 0L;
         try (Connection connection = conn) {
-            PreparedStatement ps = connection.prepareStatement("SELECT COUNT(*) FROM " + getTableName(clazz));
+            PreparedStatement ps = connection.prepareStatement("SELECT COUNT(*) FROM " + NameConverter.getTableName(clazz));
             ResultSet resultSet = ps.executeQuery();
             while(resultSet.next()){
                 sizeOfTable = resultSet.getLong(1);
@@ -23,10 +24,4 @@ public class StringIdGenerator {
         }
         return clazz.getSimpleName().toLowerCase() + sizeOfTable + 1L;
     }
-
-    private static String getTableName(Class<?> clazz) {
-        return clazz.isAnnotationPresent(Table.class) ? clazz.getAnnotation(Table.class)
-                .value() : clazz.getSimpleName();
-    }
-
 }

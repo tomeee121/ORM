@@ -1,5 +1,6 @@
 package teamblue.classes;
 
+import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import teamblue.annotations.Column;
 import teamblue.annotations.Entity;
@@ -7,6 +8,7 @@ import teamblue.annotations.Id;
 
 @Entity
 @Getter
+@EqualsAndHashCode
 public class StringId {
     @Id
     String name;
