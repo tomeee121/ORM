@@ -5,6 +5,7 @@ import org.junit.Before;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import teamblue.classes.MissingIdAnnotation;
 import teamblue.model.Book;
 
 import java.lang.reflect.InvocationTargetException;
@@ -87,5 +88,16 @@ public class DeleteH2MethodTest {
 
         //Then
         assertThat(book1.getId()).isEqualTo(null);
+    }
+
+    @Test
+    public void shouldDeleteObject_whenIdIsMissing() throws SQLException {
+        MissingIdAnnotation test = new MissingIdAnnotation();
+        orManager.register(test.getClass());
+        orManager.save(test);
+
+        boolean isDeleted = orManager.delete(test);
+
+        assertThat(isDeleted).isTrue();
     }
 }
