@@ -81,14 +81,15 @@ public class H2ORManager extends ORManager {
                             String oneToManyTableName =
                                     entityClassForOneToMany.isAnnotationPresent(Column.class) ?
                                             manyToOneSideTable.getAnnotation(Column.class).value() : entityClassForOneToMany.getSimpleName();
-                            try {
+
+                            try (Connection conn = getConnectionWithDB()) {
                                 PreparedStatement addForeignKeyColumn =
-                                        getConnectionWithDB().prepareStatement(ALTER_TABLE + manyToOneTableName + ADD
+                                        conn.prepareStatement(ALTER_TABLE + manyToOneTableName + ADD
                                                 + oneToManyTableName.toLowerCase() + _ID + oneToManyIdType.getSimpleName());
                                 addForeignKeyColumn.executeUpdate();
 
                                 PreparedStatement foreignKeyConstraintSql =
-                                        getConnectionWithDB().prepareStatement(ALTER_TABLE + manyToOneTableName + ADD_FOREIGN_KEY +
+                                        conn.prepareStatement(ALTER_TABLE + manyToOneTableName + ADD_FOREIGN_KEY +
                                                 LEFT_PARENTHESIS + oneToManyTableName.toLowerCase() + _ID + RIGHT_PARENTHESIS + REFERENCES + oneToManyTableName
                                                 + LEFT_PARENTHESIS + id1MFieldName + RIGHT_PARENTHESIS);
                                 foreignKeyConstraintSql.executeUpdate();
@@ -358,8 +359,9 @@ public class H2ORManager extends ORManager {
 
     private Object runSQLAndGetId(StringBuilder saveSql, Field fieldId) throws SQLException {
         Object generatedKey = null;
-        try (PreparedStatement ps = getConnectionWithDB().prepareStatement(saveSql.toString(),
-                Statement.RETURN_GENERATED_KEYS)) {
+        try (Connection conn = getConnectionWithDB()) {
+            PreparedStatement ps = conn.prepareStatement(saveSql.toString(),
+                    Statement.RETURN_GENERATED_KEYS);
             ps.executeUpdate();
             ResultSet rs = ps.getGeneratedKeys();
             while (rs.next()) {
@@ -476,8 +478,8 @@ public class H2ORManager extends ORManager {
         String sqlStatement = SELECT_ALL_FROM + tableName + WHERE + fieldName + EQUAL_QUESTION_MARK;
         Optional<T> result = Optional.empty();
 
-        try {
-            PreparedStatement ps = getConnectionWithDB().prepareStatement(sqlStatement);
+        try (Connection conn = getConnectionWithDB()) {
+            PreparedStatement ps = conn.prepareStatement(sqlStatement);
             ps.setInt(1, (int) id);
             ResultSet rs = ps.executeQuery();
             Constructor<T> declaredConstructor = cls.getDeclaredConstructor();
@@ -517,12 +519,12 @@ public class H2ORManager extends ORManager {
 
         String tableName = getTableName(cls);
 
-        String baseSql = SELECT_ALL_FROM + tableName;
+        String findAllSql = SELECT_ALL_FROM + tableName;
 
         PreparedStatement findAllStmt = null;
         List<T> foundAll = new ArrayList<>();
-        try {
-            findAllStmt = getConnectionWithDB().prepareStatement(baseSql);
+        try (Connection conn = getConnectionWithDB()) {
+            findAllStmt = conn.prepareStatement(findAllSql);
             ResultSet resultSet = null;
             resultSet = findAllStmt.executeQuery();
             Constructor<T> constructor = cls.getDeclaredConstructor();
@@ -574,7 +576,7 @@ public class H2ORManager extends ORManager {
         String fieldIdName = Arrays.stream(cls.getDeclaredFields())
                 .filter(f -> f.isAnnotationPresent(Id.class))
                 .map(Field::getName)
-                .findFirst().get();
+                .findFirst().orElseThrow(() -> new RuntimeException("No field annotated as Id"));
 
 
         String tableName = getTableName(cls);
@@ -595,8 +597,8 @@ public class H2ORManager extends ORManager {
             if (!fieldInfo.columnName.equals(fieldIdName)) {
                 String updateSql =
                         UPDATE + tableName + SET + fieldInfo.columnName + EQUAL_QUESTION_MARK + WHERE + fieldIdName + EQUAL_QUESTION_MARK;
-                try {
-                    PreparedStatement ps = getConnectionWithDB().prepareStatement(updateSql);
+                try (Connection conn = getConnectionWithDB()) {
+                    PreparedStatement ps = conn.prepareStatement(updateSql);
                     ps.setObject(1, fieldValuesForSaving.get(i));
                     ps.setString(2, valueOfField);
                     ps.execute();
@@ -634,8 +636,8 @@ public class H2ORManager extends ORManager {
 
         String retrieveSql = SELECT_ALL_FROM + tableName + WHERE + fieldIdName + EQUAL_QUESTION_MARK;
 
-        try {
-            PreparedStatement ps = getConnectionWithDB().prepareStatement(retrieveSql);
+        try (Connection conn = getConnectionWithDB()) {
+            PreparedStatement ps = conn.prepareStatement(retrieveSql);
             ps.setString(1 , valueOfField);
             ResultSet resultSet = ps.executeQuery();
             while(resultSet.next()){
@@ -670,7 +672,8 @@ public class H2ORManager extends ORManager {
             String deleteSQL = DELETE_FROM + getTableName(classOfObject) +
                                WHERE + fieldName + EQUAL_QUESTION_MARK;
 
-            try (PreparedStatement ps = getConnectionWithDB().prepareStatement(deleteSQL)){
+            try (Connection conn = getConnectionWithDB()) {
+                PreparedStatement ps = conn.prepareStatement(deleteSQL);
                 ps.setObject(1,valueOfField);
                 ps.execute();
                 log.debug("Object deleted from DB successfully.");
