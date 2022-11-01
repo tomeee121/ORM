@@ -258,7 +258,7 @@ public class H2ORManager extends ORManager {
             throw new RuntimeException(e.getSQLState());
         }
 
-        Map<String, List<?>> listOfNamesValuesFieldsId = generateMapOfNamesAndValues(
+        Map<String, List<?>> listOfNamesValuesFieldsId = generateMapOfNamesValuesId(
                 object, declaredFields, generatedKeyString);
 
 
@@ -296,12 +296,12 @@ public class H2ORManager extends ORManager {
         if(!(generatedKey instanceof String) && idField != null) {
             if (!idField.getType().getSimpleName().equalsIgnoreCase("String")) {
                 setFieldValueWithAnnotation(object, clazz, generatedKey, Id.class);
-                log.info("Object of {} saved successfully with Id: {}", object.getClass()
+                log.debug("Object of {} saved successfully with Id: {}", object.getClass()
                         .getSimpleName(), generatedKey);
             } else {
                 setFieldValueWithAnnotation(object, clazz, generatedKeyString, Id.class);
-                log.info("Object of {} saved successfully without Id", object.getClass()
-                        .getSimpleName());
+                log.debug("Object of {} saved successfully without Id : {}", object.getClass()
+                        .getSimpleName(),generatedKey);
             }
         }
     }
@@ -310,9 +310,10 @@ public class H2ORManager extends ORManager {
     * Method only work for saving objects to DB
     * Return list of names, values and fields annotated with @Id
     */
-    private Map<String, List<?>> generateMapOfNamesAndValues(Object object, List<Field> declaredFields, String generatedKeyString) {
+    private Map<String, List<?>> generateMapOfNamesValuesId(Object object, List<Field> declaredFields, String generatedKeyString) {
         Map<String, List<?>> map = new HashMap<>();
         List<String> listOfFieldsName = declaredFields.stream().map(NameConverter::getFieldName).toList();
+
 
         map.put("names",listOfFieldsName);
 
@@ -462,7 +463,7 @@ public class H2ORManager extends ORManager {
 
         try {
             PreparedStatement ps = getConnectionWithDB().prepareStatement(sqlStatement);
-            ps.setInt(1, (int) id);
+            ps.setObject(1, id);
             ResultSet rs = ps.executeQuery();
             Constructor<T> declaredConstructor = cls.getDeclaredConstructor();
             declaredConstructor.setAccessible(true);
@@ -740,11 +741,16 @@ public class H2ORManager extends ORManager {
                 for (var fieldInfo : metaInfoInstanceObjects.getFieldInfos()) {
                     var value = fieldInfo.getRSgetter(rs);
                     var field = fieldInfo.getField();
-                    if (field.isAnnotationPresent(OneToMany.class)){
-                        continue;
-                    }
                     field.setAccessible(true);
-                    field.set(newObject, value);
+                    if (field.isAnnotationPresent(OneToMany.class)) {
+                    } else if (field.isAnnotationPresent(ManyToOne.class) && value instanceof Serializable val) {
+                        Optional<T> byId = findById(val, clazz);
+                        if (byId.isPresent()){
+                            field.set(newObject,byId.get());
+                        }
+                    } else {
+                        field.set(newObject, value);
+                    }
                 }
                 cursor ++;
                 return newObject;
