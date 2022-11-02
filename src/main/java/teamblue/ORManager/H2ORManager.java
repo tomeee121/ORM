@@ -732,42 +732,75 @@ public class H2ORManager extends ORManager {
         String valueOfField = getValueIdFromObject(o, classOfObject).orElse("");
 
         if (!valueOfField.equals("")) {
-            Field[] declaredFields = classOfObject.getDeclaredFields();
-            String fieldName = Arrays.stream(declaredFields)
-                                     .filter(field -> field.isAnnotationPresent(Id.class))
-                                     .map(NameConverter::getFieldName)
-                                     .findAny().orElseThrow();
-
-            String deleteSQL = DELETE_FROM + NameConverter.getTableName(classOfObject) +
-                               WHERE + fieldName + EQUAL_QUESTION_MARK;
-
-            try (Connection conn = getConnectionWithDB()) {
-                PreparedStatement ps = conn.prepareStatement(deleteSQL);
-                ps.setObject(1, valueOfField);
-                ps.execute();
-                log.debug("Object deleted from DB successfully.");
-            } catch (SQLException e) {
-                log.debug("Unable to delete object from DB. Message: {}",e.getSQLState());
-                throw new RuntimeException(e.getSQLState());
-            }
-            Arrays.stream(declaredFields).filter(field -> field.isAnnotationPresent(Id.class))
-                    .forEach(field -> {
-                        try {
-                            field.setAccessible(true);
-                            if (field.getType().isPrimitive()) {
-                                field.set(o, 0L);
-                            } else {
-                                field.set(o, null);
-                            }
-                        } catch (IllegalAccessException e) {
-                            log.debug("Unable to set object a null/0 value");
-                            throw new RuntimeException(e.getMessage());
-                        }
-                    });
-            return true;
+            return deleteWithId(o, classOfObject, valueOfField);
+        } else {
+            return deleteWithoutId(o, classOfObject);
         }
-        log.info("Unable to delete the object.");
-        return false;
+    }
+
+    private boolean deleteWithoutId(Object o, Class<?> classOfObject) {
+        List<Field> declaredFields = Arrays.stream(classOfObject.getDeclaredFields()).filter(f -> !f.isAnnotationPresent(OneToMany.class)).toList();
+        Map<ElementOfSaveMap, List<?>> elementOfSaveMapListMap = generateMapOfFieldAttributes(o, declaredFields);
+        List<?> sqlNames = elementOfSaveMapListMap.get(ElementOfSaveMap.NAMES);
+        List<?> sqlValues = elementOfSaveMapListMap.get(ElementOfSaveMap.VALUES);
+
+        StringBuilder deleteSQL = new StringBuilder();
+        deleteSQL.append(DELETE_FROM)
+                 .append(NameConverter.getTableName(classOfObject))
+                 .append(WHERE);
+        for (int i = 0; i < sqlNames.size(); i++){
+            deleteSQL.append(sqlNames.get(i))
+                    .append(" = ")
+                    .append(sqlValues.get(i))
+                    .append(" AND ");
+        }
+        deleteSQL.delete(deleteSQL.length() - 5, deleteSQL.length());
+        deleteSQL.append(" LIMIT 1");
+
+        try (Connection conn = getConnectionWithDB()) {
+            PreparedStatement ps = conn.prepareStatement(deleteSQL.toString());
+            ps.execute();
+            log.debug("Object deleted from DB successfully.");
+        } catch (SQLException e) {
+            log.debug("Unable to delete object from DB. Message: {}",e.getSQLState());
+            return false;
+        }
+        return true;
+    }
+
+    private boolean deleteWithId(Object o, Class<?> classOfObject, String valueOfField) {
+        Field[] declaredFields = classOfObject.getDeclaredFields();
+        String fieldIdName = Arrays.stream(declaredFields)
+                                 .filter(field -> field.isAnnotationPresent(Id.class))
+                                 .map(NameConverter::getFieldName)
+                                 .findAny().orElseThrow();
+
+        String deleteSQL = DELETE_FROM + NameConverter.getTableName(classOfObject) +
+                           WHERE + fieldIdName + EQUAL_QUESTION_MARK;
+
+        try (Connection conn = getConnectionWithDB()) {
+            PreparedStatement ps = conn.prepareStatement(deleteSQL);
+            ps.setObject(1, valueOfField);
+            ps.execute();
+            log.debug("Object deleted from DB successfully.");
+        } catch (SQLException e) {
+            log.debug("Unable to delete object from DB. Message: {}",e.getSQLState());
+            return false;
+        }
+        Arrays.stream(declaredFields).filter(field -> field.isAnnotationPresent(Id.class))
+                .forEach(field -> {
+                    try {
+                        field.setAccessible(true);
+                        if (field.getType().isPrimitive()) {
+                            field.set(o, 0L);
+                        } else {
+                            field.set(o, null);
+                        }
+                    } catch (IllegalAccessException e) {
+                        log.debug("Unable to set object a null/0 value");
+                    }
+                });
+        return true;
     }
 
     private class FindAllIterator<T> implements Iterable<T> {

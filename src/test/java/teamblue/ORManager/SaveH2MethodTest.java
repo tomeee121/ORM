@@ -184,9 +184,9 @@ public class SaveH2MethodTest {
         }
         if (conn != null) {
             try {
-//                orManager.getConnectionWithDB()
-//                        .prepareStatement("DROP ALL OBJECTS")
-//                        .execute();
+                orManager.getConnectionWithDB()
+                        .prepareStatement("DROP ALL OBJECTS")
+                        .execute();
                 conn.close();
             } catch (SQLException e) {
                 throw new RuntimeException(e);
