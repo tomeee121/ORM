@@ -22,7 +22,7 @@ public abstract class ORManager {
 
     abstract void register(Class... entityClasses) throws SQLException;
 
-    abstract Object save(Object o);
+    abstract <T> T save(T o);
 
     abstract void persist(Object o);
 

@@ -210,7 +210,7 @@ public class H2ORManager extends ORManager {
     }
 
     @Override
-    public Object save(Object object) {
+    public <T> T save(T object) {
         String oClassName = object.getClass().getName();
         Class<?> clazz;
         try {
