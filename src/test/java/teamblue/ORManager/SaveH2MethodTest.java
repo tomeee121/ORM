@@ -144,7 +144,6 @@ public class SaveH2MethodTest {
     }
 
     @Test
-    @Ignore("Should be working with String ID, findById not support String")
     public void shouldSaveObject_whenIdIsString() throws SQLException {
         StringId stringId = new StringId(null,"tests");
         orManager.register(stringId.getClass());
