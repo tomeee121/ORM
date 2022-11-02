@@ -868,7 +868,7 @@ public class H2ORManager extends ORManager {
                     if (field.isAnnotationPresent(OneToMany.class)) {
                         continue;
                     } else if (field.isAnnotationPresent(ManyToOne.class) && value instanceof Serializable val) {
-                        Optional<T> byId = findById(val, clazz);
+                        Optional<?> byId = findById(val, field.getType());
                         if (byId.isPresent()){
                             field.set(newObject,byId.get());
                         }
